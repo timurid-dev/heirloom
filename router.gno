@@ -18,7 +18,7 @@ func newRouter() *mux.Router {
 		id, err := strconv.Atoi(req.GetVar("id"))
 		w := getWill(id)
 		if err != nil || w == nil {
-			res.Write(notFound("Will not found"))
+			res.Write(notFound("No such will"))
 			return
 		}
 		res.Write(renderWill(w))

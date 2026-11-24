@@ -80,7 +80,7 @@ func signedWithSessionKey() bool {
 func mustGetWill(id int) *Will {
 	w := getWill(id)
 	if w == nil {
-		panic("will not found")
+		panic("no such will")
 	}
 	return w
 }

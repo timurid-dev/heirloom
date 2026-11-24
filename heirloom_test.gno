@@ -451,7 +451,7 @@ func TestRender(cur realm, t *testing.T) {
 	Release(cross(cur), empty)
 	uassert.True(t, strings.Contains(Render("will/2"), "Nothing to claim."))
 
-	uassert.True(t, strings.Contains(Render("will/3"), "Will not found"))
+	uassert.True(t, strings.Contains(Render("will/3"), "No such will"))
 	uassert.True(t, strings.Contains(Render("u/"+anna.String()+"/461168601842738791"), "Page not found"))
 	uassert.True(t, strings.Contains(Render("u/"+anna.String()+"/2"), "Page not found"))
 	uassert.True(t, strings.Contains(Render("u/nope"), "Invalid address"))
