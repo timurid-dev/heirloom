@@ -4,6 +4,11 @@ Heirloom is a will for gno.land. You leave your GNOT and GRC20 tokens to the peo
 
 Built for the Gnome Tavern hackathon. The repository also contains **The Keeper's Board**, a small demo realm whose admin passes to a successor through Heirloom.
 
+## Live on the Onyx testnet
+
+- Heirloom: https://onyx.testnets.gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+- The Keeper's Board: https://onyx.testnets.gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/keepersboard
+
 ## Why
 
 On a chain, a lost key or a death is permanent. Funds sit untouched forever, and a realm whose admin is gone can never be updated again. Heirloom gives both a way out that needs no trusted third party: if the owner shows no sign of life for long enough, anyone can open the will, the heirs are paid, and the admin rights move to the successor.
