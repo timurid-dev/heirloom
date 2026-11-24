@@ -112,3 +112,7 @@ gno test ./gno.land/r/<namespace>/keepersboard/
 ```
 
 Heirloom has 30 tests and The Keeper's Board has 2. They cover release and payout, rounding, admin succession through long chains and loops, a stranger trying to block a handover, calls made through other realms, deposit guards, and the rendered pages. `gno fmt` and `gno lint` are clean. The whole flow, from a pinned note to the board passing to the successor, was also run on a local `gnodev` node with real transactions.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
