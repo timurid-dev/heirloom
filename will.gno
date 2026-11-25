@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	MaxHeirs   = 10
-	MaxAssets  = 10
-	MinSilence = day
-	MaxSilence = 3650 * day
+	MaxHeirs        = 10
+	MaxAssets       = 10
+	MinSilence      = day
+	MaxSilence      = 3650 * day
+	ObjectionPeriod = 7 * day
 
 	day = 24 * time.Hour
 )
@@ -20,9 +21,10 @@ const (
 type willStatus string
 
 const (
-	statusActive   willStatus = "active"
-	statusDue      willStatus = "due"
-	statusReleased willStatus = "released"
+	statusActive    willStatus = "active"
+	statusDue       willStatus = "due"
+	statusRequested willStatus = "requested"
+	statusReleased  willStatus = "released"
 )
 
 type Heir struct {
@@ -33,16 +35,19 @@ type Heir struct {
 }
 
 type Will struct {
-	ID         int
-	Owner      address
-	Heirs      []*Heir
-	Successor  address
-	Silence    time.Duration
-	LastSeen   time.Time
-	ReleasedAt time.Time
+	ID          int
+	Owner       address
+	Heirs       []*Heir
+	Successor   address
+	Silence     time.Duration
+	LastSeen    time.Time
+	RequestedAt time.Time
+	RequestedBy address
+	ReleasedAt  time.Time
 
 	held     avl.Tree
 	snapshot avl.Tree
+	hidden   avl.Tree
 }
 
 func (w *Will) releaseAt() time.Time {
@@ -57,10 +62,20 @@ func (w *Will) isDue() bool {
 	return !w.isReleased() && !time.Now().Before(w.releaseAt())
 }
 
+func (w *Will) isRequested() bool {
+	return !w.isReleased() && !w.RequestedAt.IsZero()
+}
+
+func (w *Will) objectionEnds() time.Time {
+	return w.RequestedAt.Add(ObjectionPeriod)
+}
+
 func (w *Will) status() willStatus {
 	switch {
 	case w.isReleased():
 		return statusReleased
+	case w.isRequested():
+		return statusRequested
 	case w.isDue():
 		return statusDue
 	}
@@ -69,6 +84,10 @@ func (w *Will) status() willStatus {
 
 func (w *Will) touch() {
 	w.LastSeen = time.Now()
+	if w.isRequested() {
+		w.RequestedAt, w.RequestedBy = time.Time{}, ""
+		emit("ReleaseCancelled", w)
+	}
 }
 
 func (w *Will) heir(addr address) *Heir {
@@ -78,6 +97,14 @@ func (w *Will) heir(addr address) *Heir {
 		}
 	}
 	return nil
+}
+
+func (w *Will) names(addr address) bool {
+	return w.heir(addr) != nil || w.Successor == addr
+}
+
+func (w *Will) hiddenFor(addr address) bool {
+	return w.hidden.Has(addr.String())
 }
 
 func (w *Will) balance(asset string) int64 {

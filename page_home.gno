@@ -1,6 +1,7 @@
 package heirloom
 
 import (
+	"strconv"
 	"strings"
 
 	"gno.land/p/jeronimoalbi/mdform/v0"
@@ -13,7 +14,8 @@ func renderHome() string {
 	var b strings.Builder
 	b.WriteString("# Heirloom\n\n")
 	b.WriteString("Leave your GNOT and tokens to the people you choose, and your admin rights in realms that check `Holder`. ")
-	b.WriteString("If you show no sign of life for the period you set, anyone else can release the will and pay out your heirs' shares. ")
+	b.WriteString("If you show no sign of life for the period you set, anyone else can ask to release the will. ")
+	b.WriteString("You then have " + strconv.Itoa(int(ObjectionPeriod/day)) + " more days to object with any sign of life; after that, the will is released and anyone can pay out your heirs' shares. ")
 	b.WriteString("Until then everything stays yours. Every successful call you sign to Heirloom restarts the clock, and so does using a realm that calls `Touch`. ")
 	b.WriteString("Other activity on the chain and transactions signed with a session key do not, and a session key cannot create, change or ping a will: sign those with your master key.\n\n")
 

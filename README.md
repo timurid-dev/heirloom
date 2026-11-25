@@ -9,18 +9,22 @@ Built for the Gnome Tavern hackathon. The repository also contains **The Keeper'
 - Heirloom: https://onyx.testnets.gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
 - The Keeper's Board: https://onyx.testnets.gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/keepersboard
 
+These deployments run an earlier version, without the objection period described below. Packages on gno.land cannot be changed once added, so the current code needs a new package path.
+
 ## Why
 
-On a chain, a lost key or a death is permanent. Funds sit untouched forever, and a realm whose admin is gone can never be updated again. Heirloom gives both a way out that needs no trusted third party: if the owner shows no sign of life for long enough, anyone can open the will, the heirs are paid, and the admin rights move to the successor.
+On a chain, a lost key or a death is permanent. Funds sit untouched forever, and a realm whose admin is gone can never be updated again. Heirloom gives both a way out that needs no trusted third party: if the owner shows no sign of life for long enough, anyone can ask to release the will. If the owner still does not respond within 7 days, the heirs are paid and the admin rights move to the successor.
 
 ## How it works
 
 1. **Make a will.** List heirs as `address:percent` pairs that add up to 100 (at most 10 heirs), choose a silence period from 1 to 3650 days, and optionally name a successor. You can have one unreleased will at a time.
 2. **Fill it.** Deposit GNOT with the call, or deposit any GRC20 token registered in `grc20reg` after approving Heirloom as a spender. A will holds at most 10 different assets.
 3. **Stay alive.** Every successful call you sign to Heirloom restarts the clock: `Ping`, a deposit, a change of heirs. So does using any realm that calls `heirloom.Touch`, such as The Keeper's Board. Transactions signed with a session key do not count, and a session key cannot create or change a will.
-4. **Release.** Once the silence period has passed, anyone but the owner can call `Release`. The will is frozen as it stands: from then on nobody can deposit, withdraw or change it.
-5. **Pay out.** Anyone can call `Claim(id, heir, asset)` to send an heir's share of one asset to that heir. The share always goes to the heir, so heirs that are realms, or that lost their key, can still be paid. Shares are rounded down and the first heir gets the remainder, so payouts add up exactly to what the will held.
-6. **Hand over admin rights.** Releasing a will hands the owner's admin rights to the successor, once and for good. If a later will of the same owner is released, it only leaves assets.
+4. **Ask to release.** Once the silence period has passed, anyone but the owner can call `Release`. This only asks for the release: nothing is frozen or paid yet.
+5. **Object.** The owner then has 7 days to object. Any sign of life, as in step 3, cancels the request, and the silence period starts again.
+6. **Release.** When the 7 days have passed without a sign of life, the next `Release` releases the will. It is frozen as it stands: from then on nobody can deposit, withdraw or change it.
+7. **Pay out.** Anyone can call `Claim(id, heir, asset)` to send an heir's share of one asset to that heir, so an heir that is a realm, or that cannot pay the fees, can still be paid. Shares are rounded down and the first heir gets the remainder, so payouts add up exactly to what the will held. A `Claim` after the 7 days also releases the will.
+8. **Hand over admin rights.** Releasing a will hands the owner's admin rights to the successor, once and for good. If a later will of the same owner is released, it only leaves assets.
 
 ### Admin rights and `Holder`
 
@@ -34,7 +38,7 @@ import "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
 var admin = address("g1...")
 
 func AdminOnly(cur realm) {
-	if !cur.IsCurrent() || cur.Previous().Address() != heirloom.Holder(admin) {
+	if cur.Previous().Address() != heirloom.Holder(admin) {
 		panic("admin only")
 	}
 	heirloom.Touch(cross(cur))
@@ -60,7 +64,10 @@ gnokey maketx call -pkgpath $PKG -func CreateWill \
 # put 5 GNOT into will 1
 gnokey maketx call -pkgpath $PKG -func Deposit -args 1 -send 5000000ugnot ...
 
-# after the silence period, anyone but the owner
+# after the silence period, anyone but the owner asks to release will 1
+gnokey maketx call -pkgpath $PKG -func Release -args 1 ...
+
+# 7 days later, if the owner did not object: release it and pay an heir
 gnokey maketx call -pkgpath $PKG -func Release -args 1 ...
 gnokey maketx call -pkgpath $PKG -func Claim -args 1 -args "g1heir..." -args ugnot ...
 ```
@@ -73,29 +80,31 @@ gnokey maketx call -pkgpath $PKG -func Claim -args 1 -args "g1heir..." -args ugn
 | `SetHeirs(id, heirs)` | owner | Replaces the heirs. |
 | `SetSuccessor(id, successor)` | owner | Sets or clears the successor. |
 | `SetSilence(id, silence)` | owner | Changes the silence period. |
-| `Ping(id)` | owner | Restarts the silence period. |
+| `Ping(id)` | owner | Restarts the silence period and cancels a release request. |
 | `Deposit(id)` | owner, direct call | Adds the GNOT sent with the call. |
 | `DepositToken(id, token, amount)` | owner | Pulls an approved GRC20 amount into the will. |
 | `Withdraw(id, asset, amount)` | owner | Sends an asset back to the owner. |
 | `Revoke(id)` | owner | Returns everything and deletes the will. |
-| `Release(id)` | anyone but the owner | Opens a will whose silence period has passed. |
-| `Claim(id, heir, asset)` | anyone, except the owner before release | Pays one heir's share of one asset. |
+| `Release(id)` | anyone but the owner | Asks to release a will whose silence period has passed; 7 days later, releases it. |
+| `Claim(id, heir, asset)` | anyone, except the owner before release | Pays one heir's share of one asset, releasing the will first if its 7 days have passed. |
+| `Hide(id)` | an heir or successor | Takes the will off your `:u/<address>` page; you can still be paid. |
 | `Touch()` | any realm | Sign of life for the transaction signer. |
 | `Holder(addr) address` | read | Who holds the admin rights of `addr`. |
 | `ActiveWill(owner) (id, ok)` | read | The owner's unreleased will. |
-| `WillInfo(id) (owner, status, releaseAt, ok)` | read | Status: `active`, `due` or `released`. |
+| `WillInfo(id) (owner, status, releaseAt, ok)` | read | Status: `active`, `due`, `requested` or `released`. |
 
 Owner calls need the master key and are refused once the will is released. Amounts are in the asset's smallest unit (1 GNOT = 1000000 ugnot).
 
 ## The Keeper's Board
 
-`demo/keepersboard` is a notice board whose keeper is `heirloom.Holder(founder)`, where the founder is the owner of the namespace the board is deployed under. Anyone can post a note; the keeper pins one note and removes any. Every post, pin and removal calls `heirloom.Touch`. When the founder's will is released, the board passes to the founder's successor with no change to the board's code, and its page says so.
+`demo/keepersboard` is a notice board whose keeper is `heirloom.Holder(founder)`, where the founder is the address in the board's package path, `gno.land/r/<address>/keepersboard`; the board refuses to deploy under any other path. Anyone can post a note; the keeper pins one note and removes any. Every post, pin and removal calls `heirloom.Touch`. When the founder's will is released, the board passes to the founder's successor with no change to the board's code, and its page says so.
 
 ## Design notes
 
-- **Who is calling.** Every entry point checks `cur.IsCurrent()` before reading `cur.Previous()`. Owner actions compare the owner with that immediate caller, so a realm that the owner happens to call cannot act as the owner.
+- **Who is calling.** Every entry point takes the caller from `cur.Previous()`, the realm or account that called it directly. Owner actions compare the owner with that caller, so a realm that the owner happens to call cannot act as the owner.
 - **Signs of life follow the signer.** `Touch`, `Release` and `Claim` credit the account that signed the transaction (`OriginCaller`), even when the call comes through another realm. That can only extend the signer's own will; it never grants owner rights.
 - **Coins.** GNOT is accepted only on a direct call (`IsUserCall`), so a `maketx run` script or another realm cannot reuse the coins attached to a transaction. Every other function refuses coins sent with a direct call.
+- **Objection period.** Asking to release a will and releasing it are two calls, 7 days apart. A successor who stands to gain the owner's admin rights cannot take them in the first block after the silence period ends: the owner gets a week, and a public `ReleaseRequested` event, to answer.
 - **Admin succession** is stored as a union-find: addresses whose rights end with the same holder share a group, so `Holder` answers in a few steps however long the chain of handovers grows, and a loop is detected by comparing two groups.
 - **Why `chain/runtime/unsafe` is imported.** `OriginSend` is the only way to read the GNOT attached to a call, and it is read only behind `IsUserCall`. `OriginCaller` is used only for signs of life, as above.
 
@@ -103,8 +112,10 @@ Owner calls need the master key and are refused once the will is released. Amoun
 
 - Tokens of all wills sit at the realm's single address. If a token's issuer can take or burn tokens from that address, `Withdraw` and `Revoke` of that token fail for the wills holding it. Other assets can still be withdrawn one by one, and sending the missing units back to the realm fixes it.
 - Admin rights pass only in realms that check `Holder`. Realms built on `ownable` or a fixed admin address are not affected.
-- On a network that restricts GNOT transfers (`ugnot` in the bank's `restricted_denoms`), an account that is allowed to transfer can still deposit, but nobody can withdraw or claim GNOT until the restriction is lifted. Those calls fail as a whole, so nothing is lost: the will stays due, and the shares stay unclaimed. Onyx and mainnet have no restricted denoms as of November 2026.
-- Storage deposit: a will with 2 heirs stores about 18 KB, with 10 heirs about 59 KB. It is refunded on `Revoke`, not after release.
+- On a network that restricts GNOT transfers (`ugnot` in the bank's `restricted_denoms`), an account that is allowed to transfer can still deposit, but nobody can withdraw or claim GNOT until the restriction is lifted. `Revoke` of a will holding GNOT fails as well. These calls fail as a whole, so nothing is lost, and the shares stay unclaimed. `Release` moves no coins, so it still works: the will is released and the admin rights pass on, while the GNOT waits until transfers are allowed again. Onyx and mainnet have no restricted denoms as of November 2026.
+- Storage deposits are paid by whoever signs the call that stores data. In `heirloom_audit.txtar`, with 2 heirs and 2 assets, creating the will stores about 15 KB, asking for the release about 0.2 KB, releasing about 7.6 KB, and each claim between -1 and +4 KB; freed bytes are refunded to the caller of that transaction. The owner's deposit is refunded on `Revoke`, not after release.
+- The 10-asset limit is tested on the will's own bookkeeping, not with 11 real tokens.
+- Anyone can name any address as an heir or successor without its consent. The address can take such a will off its `:u/<address>` page with `Hide`, and the owner cannot put it back; the address still stays an heir or successor.
 
 ## Tests
 
@@ -115,13 +126,14 @@ gno test ./gno.land/r/<namespace>/heirloom/
 gno test ./gno.land/r/<namespace>/keepersboard/
 ```
 
-Heirloom has 36 tests and The Keeper's Board has 2. They cover release and payout, the exact moment a will falls due, rounding and the largest amounts, admin succession through long chains and loops, a stranger trying to block a handover, calls made through other realms, deposit guards, and the rendered pages. `gno fmt` and `gno lint` are clean. The whole flow, from a pinned note to the board passing to the successor, was also run on a local `gnodev` node with real transactions.
+Heirloom has 39 tests and The Keeper's Board has 4. They cover the release request, the objection period and the signs of life that cancel it, payout, the exact moments a release can be asked for and completed, rounding and the largest amounts, admin succession through long chains and loops, a stranger trying to block a handover, calls made through other realms, deposit guards, hiding a will from a page, and the rendered pages. `gno fmt` and `gno lint` are clean. The whole flow, from a pinned note to the board passing to the successor, was also run on a local `gnodev` node with real transactions.
 
-Three integration tests in [`integration/`](integration) run Heirloom on a real in-memory node with real transactions (gno v1.8.0, `gno.land/pkg/integration`). A day is patched down to 30 seconds so that a will can fall due during the test.
+Four integration tests in [`integration/`](integration) run Heirloom on a real in-memory node with real transactions (gno v1.8.0, `gno.land/pkg/integration`). A day is patched down to 30 seconds, and the objection period to one such day, so that a will can be released during the test.
 
-- `heirloom_audit.txtar`: coins sent through `maketx run`, to a function that takes none, or through another realm are refused; another realm cannot withdraw or revoke for the owner; GRC20 deposits; release, payout of both assets to two heirs, and the realm's own GNOT and token balances back at zero.
-- `heirloom_session.txtar`: a session key cannot ping, change or revoke a will, directly or through `maketx run`, and its `Touch` does not keep a will from falling due.
-- `heirloom_locked.txtar`: with GNOT transfers restricted, a restricted account cannot deposit, and a withdrawal or claim fails without changing the will.
+- `heirloom_audit.txtar`: coins sent through `maketx run`, to a function that takes none, or through another realm are refused; another realm cannot withdraw or revoke for the owner; GRC20 deposits; a release request with no payout and no handover during the objection period; release, payout of both assets to two heirs, and the realm's own GNOT and token balances back at zero.
+- `heirloom_session.txtar`: a session key cannot ping, change or revoke a will, directly or through `maketx run`, and its `Touch` cancels no release request, while a `Ping` signed with the master key does.
+- `heirloom_multimsg.txtar`: in a transaction with several messages, each message has its own coins: a `Deposit` without coins next to a paid one fails the whole transaction, and two paid deposits add up exactly.
+- `heirloom_locked.txtar`: with GNOT transfers restricted, a restricted account cannot deposit; a withdrawal or revoke fails and the will keeps its GNOT; the will can still be released, but the GNOT claim fails and stays open.
 
 Copy them to `gno.land/pkg/integration/testdata/` in a gno checkout that also holds the realm under `examples/`, then run:
 

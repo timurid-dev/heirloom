@@ -7,30 +7,29 @@ import (
 )
 
 func enter(cur realm) address {
-	caller := callerOf(cur)
-	if cur.Previous().IsUserCall() && len(unsafe.OriginSend()) > 0 {
+	if !cur.IsCurrent() {
+		panic("unauthorized realm")
+	}
+	caller := cur.Previous()
+	if caller.IsUserCall() && len(unsafe.OriginSend()) > 0 {
 		panic("this function does not accept coins")
 	}
-	return caller
+	return caller.Address()
 }
 
 func enterWithGNOT(cur realm) (address, int64) {
-	caller := callerOf(cur)
-	if !cur.Previous().IsUserCall() {
+	if !cur.IsCurrent() {
+		panic("unauthorized realm")
+	}
+	caller := cur.Previous()
+	if !caller.IsUserCall() {
 		panic("coins must be sent with a direct call (gnokey maketx call or a wallet)")
 	}
 	sent := unsafe.OriginSend()
 	if len(sent) != 1 || sent[0].Denom != gnot || sent[0].Amount <= 0 {
 		panic("attach the GNOT to deposit")
 	}
-	return caller, sent[0].Amount
-}
-
-func callerOf(cur realm) address {
-	if !cur.IsCurrent() {
-		panic("unauthorized realm")
-	}
-	return cur.Previous().Address()
+	return caller.Address(), sent[0].Amount
 }
 
 func touchOwnWill(caller address, id int) *Will {
@@ -46,7 +45,7 @@ func touchOwnWill(caller address, id int) *Will {
 	return w
 }
 
-func enterAsOutsider(cur realm, id int) *Will {
+func enterAsOutsider(cur realm, id int) (*Will, address) {
 	enter(cur)
 	signer := unsafe.OriginCaller()
 	w := mustGetWill(id)
@@ -54,7 +53,7 @@ func enterAsOutsider(cur realm, id int) *Will {
 		panic("you own this will: call Ping to show a sign of life")
 	}
 	markAlive(signer)
-	return w
+	return w, signer
 }
 
 func mustUseMasterKey() {

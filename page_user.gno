@@ -19,23 +19,30 @@ func renderUser(addr address, page int) string {
 	if holder := holderOf(addr); holder != addr {
 		b.WriteString("Admin rights of this address now belong to " + userLink(holder) + ".\n\n")
 	}
-	b.WriteString(section("Wills made", made, page, func(w *Will) string {
-		return ufmt.Sprintf("- %s: %s\n", willLink(w.ID), string(w.status()))
-	}))
-	b.WriteString(section("Named as heir", named, page, func(w *Will) string {
-		return ufmt.Sprintf("- %s of %s: %d%%, %s\n", willLink(w.ID), userLink(w.Owner), w.heir(addr).Percent, string(w.status()))
-	}))
-	b.WriteString(section("Named as successor", succeeding, page, func(w *Will) string {
-		return ufmt.Sprintf("- %s of %s: %s\n", willLink(w.ID), userLink(w.Owner), string(w.status()))
-	}))
+	var madeLines, namedLines, succeedingLines []string
+	for _, w := range made {
+		madeLines = append(madeLines, ufmt.Sprintf("- %s: %s\n", willLink(w.ID), string(w.status())))
+	}
+	for _, w := range named {
+		namedLines = append(namedLines, ufmt.Sprintf("- %s of %s: %d%%, %s\n", willLink(w.ID), userLink(w.Owner), w.heir(addr).Percent, string(w.status())))
+	}
+	for _, w := range succeeding {
+		succeedingLines = append(succeedingLines, ufmt.Sprintf("- %s of %s: %s\n", willLink(w.ID), userLink(w.Owner), string(w.status())))
+	}
+	b.WriteString(section("Wills made", madeLines, page))
+	b.WriteString(section("Named as heir", namedLines, page))
+	b.WriteString(section("Named as successor", succeedingLines, page))
+	if len(namedLines) > 0 || len(succeedingLines) > 0 {
+		b.WriteString("A will that names you without your consent can be taken off this page with `Hide`.\n\n")
+	}
 	if madeMore || namedMore || succeedingMore {
 		b.WriteString(userPageLink("More", addr, page+1) + "\n")
 	}
 	return b.String()
 }
 
-func section(title string, ws []*Will, page int, line func(*Will) string) string {
-	if len(ws) == 0 {
+func section(title string, lines []string, page int) string {
+	if len(lines) == 0 {
 		if page == 1 {
 			return "## " + title + "\n\nNone.\n\n"
 		}
@@ -43,8 +50,8 @@ func section(title string, ws []*Will, page int, line func(*Will) string) string
 	}
 	var b strings.Builder
 	b.WriteString("## " + title + "\n\n")
-	for _, w := range ws {
-		b.WriteString(line(w))
+	for _, line := range lines {
+		b.WriteString(line)
 	}
 	return b.String() + "\n"
 }

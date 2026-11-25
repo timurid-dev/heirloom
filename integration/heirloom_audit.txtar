@@ -1,4 +1,5 @@
 patchpkg "day = 24 * time.Hour" "day = 30 * time.Second"
+patchpkg "ObjectionPeriod = 7 * day" "ObjectionPeriod = day"
 loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
 loadpkg gno.land/r/test/tok $WORK/tok
 loadpkg gno.land/r/test/middle $WORK/middle
@@ -75,6 +76,22 @@ stdout OK!
 
 gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
 stdout OK!
+gnokey query vm/qeval --data "$H.WillInfo(1)"
+stdout '"requested"'
+! gnokey maketx call -pkgpath $H -func Claim -args 1 -args $bob_user_addr -args ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stderr 'the owner can object until'
+gnokey query vm/qeval --data "$H.Holder(\"$test1_user_addr\")"
+stdout $test1_user_addr
+
+exec sleep 45
+gnokey maketx call -pkgpath gno.land/r/test/tok -func Faucet -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+gnokey maketx call -pkgpath gno.land/r/test/tok -func Faucet -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+gnokey query vm/qeval --data "$H.WillInfo(1)"
+stdout '"released"'
 
 ! gnokey maketx call -pkgpath $H -func Withdraw -args 1 -args ugnot -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
 stderr 'will 1 is already released'

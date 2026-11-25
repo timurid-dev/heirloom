@@ -1,4 +1,5 @@
 patchpkg "day = 24 * time.Hour" "day = 30 * time.Second"
+patchpkg "ObjectionPeriod = 7 * day" "ObjectionPeriod = day"
 loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
 
 adduser bob
@@ -20,15 +21,30 @@ stdout OK!
 
 ! gnokey maketx call -pkgpath $H -func Withdraw -args 2 -args ugnot -args 1000000 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
 stderr 'restricted token transfer error'
+! gnokey maketx call -pkgpath $H -func Revoke -args 2 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stderr 'restricted token transfer error'
+gnokey query vm/qrender --data "$H:will/2"
+stdout '\| GNOT \| 2 GNOT \|'
+stdout '\| active \|'
 
 exec sleep 45
 gnokey maketx send -send 1ugnot -to $regular_user_addr -gas-fee 1000000ugnot -gas-wanted 10000000 -chainid=tendermint_test test1
 stdout OK!
 gnokey maketx send -send 1ugnot -to $regular_user_addr -gas-fee 1000000ugnot -gas-wanted 10000000 -chainid=tendermint_test test1
 stdout OK!
+gnokey maketx call -pkgpath $H -func Release -args 2 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test bob
+stdout OK!
 
+exec sleep 45
+gnokey maketx send -send 1ugnot -to $regular_user_addr -gas-fee 1000000ugnot -gas-wanted 10000000 -chainid=tendermint_test test1
+stdout OK!
+gnokey maketx send -send 1ugnot -to $regular_user_addr -gas-fee 1000000ugnot -gas-wanted 10000000 -chainid=tendermint_test test1
+stdout OK!
+gnokey maketx call -pkgpath $H -func Release -args 2 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test bob
+stdout OK!
+gnokey query vm/qeval --data "$H.WillInfo(2)"
+stdout '"released"'
 ! gnokey maketx call -pkgpath $H -func Claim -args 2 -args $bob_user_addr -args ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test bob
 stderr 'restricted token transfer error'
-
-gnokey query vm/qeval --data "$H.WillInfo(2)"
-stdout '"due"'
+gnokey query vm/qrender --data "$H:will/2"
+stdout 'pay out'

@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gno.land/p/nt/avl/v0"
 	"gno.land/p/nt/seqid/v0"
@@ -34,6 +35,9 @@ var (
 func init(cur realm) {
 	pkgPath = cur.PkgPath()
 	founder = address(strings.Split(pkgPath, "/")[2])
+	if !founder.IsValid() {
+		panic("deploy the board under an address: gno.land/r/<address>/keepersboard")
+	}
 }
 
 // Post adds a note of up to 280 characters to the board and returns its id.
@@ -41,7 +45,7 @@ func init(cur realm) {
 func Post(cur realm, text string) int {
 	author := callerOf(cur)
 	text = strings.Join(strings.Fields(text), " ")
-	if text == "" || len(text) > maxNoteLen {
+	if text == "" || utf8.RuneCountInString(text) > maxNoteLen {
 		panic("a note must be 1 to " + strconv.Itoa(maxNoteLen) + " characters")
 	}
 	n := &note{ID: int(lastID.Next()), Author: author, Text: text, At: time.Now()}

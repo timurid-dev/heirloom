@@ -16,6 +16,12 @@ func countdownRing(w *Will) string {
 	switch w.status() {
 	case statusDue:
 		label, color = "due", "#c0392b"
+	case statusRequested:
+		filled = math.Min(float64(time.Since(w.RequestedAt))/float64(ObjectionPeriod), 1)
+		label, color = formatDuration(time.Until(w.objectionEnds()))+" to object", "#c0392b"
+		if !time.Now().Before(w.objectionEnds()) {
+			label = "releasable"
+		}
 	case statusActive:
 		filled = math.Min(float64(time.Since(w.LastSeen))/float64(w.Silence), 1)
 		label, color = formatDuration(time.Until(w.releaseAt()))+" left", "#27ae60"

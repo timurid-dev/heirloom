@@ -31,14 +31,16 @@ func TestBoardPassesToTheSuccessor(cur realm, t *testing.T) {
 	Pin(cross(cur), first)
 	uassert.Equal(t, first, pinned)
 	will := heirloom.CreateWill(cross(cur), anna.String()+":100", "1", anna)
-	board := Render("")
-	uassert.True(t, strings.Contains(board, "can be released from"))
-	from := strings.SplitN(strings.SplitN(board, "can be released from ", 2)[1], " if", 2)[0]
-	uassert.True(t, strings.Contains(heirloom.Render("will/"+strconv.Itoa(will)), "| "+from+" |"))
+	uassert.True(t, strings.Contains(Render(""), "anyone but the founder can ask to release the founder's [will "+strconv.Itoa(will)+"]("))
 
 	testing.SkipHeights(blocksPerDay + 12)
 	uassert.True(t, strings.Contains(Render(""), "is due"))
 	testing.SetRealm(testing.NewUserRealm(stranger))
+	heirloom.Release(cross(cur), will)
+	uassert.True(t, strings.Contains(Render(""), "Someone asked to release the founder's"))
+	uassert.Equal(t, founder, Keeper())
+
+	testing.SkipHeights(7*blocksPerDay + 12)
 	heirloom.Release(cross(cur), will)
 	uassert.Equal(t, anna, Keeper())
 
@@ -68,4 +70,18 @@ func TestNotesAreCheckedAndEscaped(cur realm, t *testing.T) {
 	uassert.False(t, strings.Contains(page, "](javascript:"))
 	uassert.False(t, strings.Contains(page, "<b>"))
 	uassert.False(t, strings.Contains(page, "\n# heading"))
+}
+
+func TestNotesAreCountedInCharacters(cur realm, t *testing.T) {
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	id := Post(cross(cur), strings.Repeat("ж", maxNoteLen))
+	uassert.Equal(t, maxNoteLen, len([]rune(mustGetNote(id).Text)))
+	uassert.AbortsContains(t, cur, "a note must be 1 to 280 characters", func() {
+		Post(cross(cur), strings.Repeat("ж", maxNoteLen+1))
+	})
+}
+
+func TestUnknownPagesAreNotFound(t *testing.T) {
+	uassert.True(t, strings.Contains(Render("anything"), "# Page not found"))
+	uassert.True(t, strings.Contains(Render("/"), "# The Keeper's Board"))
 }

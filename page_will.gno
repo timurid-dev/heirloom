@@ -3,6 +3,7 @@ package heirloom
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"gno.land/p/jeronimoalbi/mdform/v0"
 	"gno.land/p/nt/ufmt/v0"
@@ -33,12 +34,15 @@ func renderWill(w *Will) string {
 }
 
 func statusTable(w *Will) string {
-	label, whenLabel, when := string(w.status()), "Releasable from", formatTimeFrom(w.releaseAt())
+	label, whenLabel, when := string(w.status()), "Release can be asked for from", formatTimeFrom(w.releaseAt())
 	switch w.status() {
 	case statusReleased:
 		whenLabel, when = "Released on", formatTime(w.ReleasedAt)
+	case statusRequested:
+		label += " by " + userLink(w.RequestedBy) + " on " + formatTime(w.RequestedAt) + ": released unless the owner shows a sign of life"
+		whenLabel, when = "Can be released from", formatTimeFrom(w.objectionEnds())
 	case statusDue:
-		label += ": anyone but the owner can release it"
+		label += ": anyone but the owner can ask to release it"
 	}
 	return "| Status | Last sign of life | Silence period | " + whenLabel + " |\n| :--- | :--- | :--- | :--- |\n" +
 		ufmt.Sprintf("| %s | %s | %s | %s |\n\n", label, formatTime(w.LastSeen), formatDuration(w.Silence), when)
@@ -126,8 +130,15 @@ func actionsSection(w *Will, held []string, infos assetInfos) string {
 	id := strconv.Itoa(w.ID)
 	var b strings.Builder
 	b.WriteString("## Actions\n\n")
-	if w.isDue() {
-		b.WriteString("Anyone but the owner: " + link("release the will", txURL("Release", 0, "id", id)) + ". Then anyone can pay out each heir's share.\n\n")
+	switch w.status() {
+	case statusDue:
+		b.WriteString("Anyone but the owner: " + link("ask to release the will", txURL("Release", 0, "id", id)) + ". The owner then has " + strconv.Itoa(int(ObjectionPeriod/day)) + " days to object.\n\n")
+	case statusRequested:
+		if time.Now().Before(w.objectionEnds()) {
+			b.WriteString("The owner can object until " + formatTimeFrom(w.objectionEnds()) + " with any sign of life.\n\n")
+		} else {
+			b.WriteString("Anyone but the owner: " + link("release the will", txURL("Release", 0, "id", id)) + ". Then anyone can pay out each heir's share.\n\n")
+		}
 	}
 	b.WriteString("### Owner only\n\n")
 	b.WriteString(link("I am alive", txURL("Ping", 0, "id", id)) + " · Deposit " +

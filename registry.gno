@@ -33,7 +33,7 @@ func setSuccessor(w *Will, successor address) {
 		unindexWill(&state.successorWills, w.Successor, w.ID)
 	}
 	w.Successor = successor
-	if successor != "" {
+	if successor != "" && !w.hiddenFor(successor) {
 		indexWill(&state.successorWills, successor, w.ID)
 	}
 }
@@ -58,8 +58,16 @@ func indexHeirs(w *Will, heirs []*Heir) {
 	}
 	w.Heirs = heirs
 	for _, h := range heirs {
-		indexWill(&state.heirWills, h.Addr, w.ID)
+		if !w.hiddenFor(h.Addr) {
+			indexWill(&state.heirWills, h.Addr, w.ID)
+		}
 	}
+}
+
+func hideWill(w *Will, addr address) {
+	w.hidden.Set(addr.String(), true)
+	unindexWill(&state.heirWills, addr, w.ID)
+	unindexWill(&state.successorWills, addr, w.ID)
 }
 
 func deactivate(w *Will) {

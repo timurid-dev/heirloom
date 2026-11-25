@@ -38,7 +38,8 @@ func newRouter() *mux.Router {
 // Render serves the home page, "will/<id>", and "u/<address>" with an
 // optional page number, "u/<address>/<n>".
 func Render(path string) string {
-	return router.Render(strings.Trim(path, "/"))
+	route := strings.Trim(path, "/")
+	return router.Render(route)
 }
 
 func userPage(rawAddr, rawPage string) string {

@@ -1,6 +1,7 @@
 package keepersboard
 
 import (
+	"chain/runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -12,8 +13,13 @@ import (
 	"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
 )
 
+const heirloomPath = "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+
 // Render shows the board, its keeper and the founder's will on Heirloom.
-func Render(_ string) string {
+func Render(path string) string {
+	if strings.Trim(path, "/") != "" {
+		return "# Page not found\n\n[Back to the board](" + strings.TrimPrefix(pkgPath, runtime.ChainDomain()) + ")\n"
+	}
 	var b strings.Builder
 	b.WriteString("# The Keeper's Board\n\n")
 	b.WriteString("A small board that shows [Heirloom](" + heirloomWeb() + ") at work. ")
@@ -39,16 +45,18 @@ func keeperSection() string {
 	}
 	id, ok := heirloom.ActiveWill(founder)
 	if !ok {
-		b.WriteString("The founder has no will on Heirloom, so the board stays with the founder.\n\n")
+		b.WriteString("The founder has no unreleased will on Heirloom, so the board stays with the founder.\n\n")
 		return b.String()
 	}
-	_, status, releaseAt, _ := heirloom.WillInfo(id)
+	_, status, _, _ := heirloom.WillInfo(id)
 	willLink := "[will " + strconv.Itoa(id) + "](" + heirloomWeb() + ":will/" + strconv.Itoa(id) + ")"
 	switch status {
 	case "due":
-		b.WriteString("The founder's " + willLink + " is due: anyone but the founder can release it now.\n\n")
+		b.WriteString("The founder's " + willLink + " is due: anyone but the founder can ask to release it now.\n\n")
+	case "requested":
+		b.WriteString("Someone asked to release the founder's " + willLink + ". Unless the founder shows a sign of life before the objection period ends, it will be released. The dates are on the will's page.\n\n")
 	default:
-		b.WriteString("The founder's " + willLink + " can be released from " + formatTimeFrom(releaseAt) + " if the founder stays silent until then.\n\n")
+		b.WriteString("If the founder stays silent for the whole silence period, anyone but the founder can ask to release the founder's " + willLink + ". The date is on the will's page.\n\n")
 	}
 	return b.String()
 }
@@ -102,16 +110,9 @@ func userLink(addr address) string {
 }
 
 func heirloomWeb() string {
-	return "/r/" + founder.String() + "/heirloom"
+	return strings.TrimPrefix(heirloomPath, runtime.ChainDomain())
 }
 
 func formatTime(t time.Time) string {
 	return t.UTC().Format("2006-01-02 15:04 UTC")
-}
-
-func formatTimeFrom(t time.Time) string {
-	if m := t.Truncate(time.Minute); m.Before(t) {
-		t = m.Add(time.Minute)
-	}
-	return formatTime(t)
 }

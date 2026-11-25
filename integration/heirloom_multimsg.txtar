@@ -1,0 +1,48 @@
+loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+loadpkg gno.land/r/test/probe $WORK/probe
+
+adduserfrom user1 'success myself purchase tray reject demise scene little legend someone lunar hope media goat regular test area smart save flee surround attack rapid smoke'
+stdout 'g1c0j899h88nwyvnzvh5jagpq6fkkyuj76nld6t0'
+adduserfrom gui 'relax garment load shy garden video prepare edge churn noodle frequent grass priority half merge honey cousin industry panda forward brand taste village verb'
+stdout 'g1ss6w8xfy7vnp595yely63jqa8553k03mjcglen'
+
+gnoland start
+
+gnokey sign -tx-path $WORK/tx/reuse.tx -chainid=tendermint_test -account-number $gui_account_num -account-sequence $gui_account_seq gui
+stdout 'Tx successfully signed'
+! gnokey broadcast $WORK/tx/reuse.tx -quiet=false
+stderr 'attach the GNOT to deposit'
+gnokey query vm/qeval --data "gno.land/r/test/probe.Held()"
+stdout '"gnot=0"'
+
+gnokey sign -tx-path $WORK/tx/two.tx -chainid=tendermint_test -account-number $user1_account_num -account-sequence $user1_account_seq user1
+stdout 'Tx successfully signed'
+gnokey broadcast $WORK/tx/two.tx -quiet=false
+stdout OK!
+gnokey query vm/qeval --data "gno.land/r/test/probe.Held()"
+stdout '"gnot=3000000"'
+gnokey query vm/qrender --data "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom:will/1"
+stdout '\| GNOT \| 3 GNOT \|'
+
+-- probe/gnomod.toml --
+module = "gno.land/r/test/probe"
+gno = "0.9"
+-- probe/probe.gno --
+package probe
+
+import (
+	"chain"
+	"chain/banker"
+	"strconv"
+)
+
+func Held() string {
+	addr := chain.PackageAddress("gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom")
+	return "gnot=" + strconv.FormatInt(banker.NewReadonlyBanker().GetCoin(addr, "ugnot"), 10)
+}
+
+-- tx/reuse.tx --
+{"msg":[{"@type":"/vm.m_call","caller":"g1ss6w8xfy7vnp595yely63jqa8553k03mjcglen","send":"","pkg_path":"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom","func":"CreateWill","args":["g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5:100","1",""]},{"@type":"/vm.m_call","caller":"g1ss6w8xfy7vnp595yely63jqa8553k03mjcglen","send":"1000000ugnot","pkg_path":"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom","func":"Deposit","args":["1"]},{"@type":"/vm.m_call","caller":"g1ss6w8xfy7vnp595yely63jqa8553k03mjcglen","send":"","pkg_path":"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom","func":"Deposit","args":["1"]}],"fee":{"gas_wanted":"100000000","gas_fee":"2000000ugnot"},"signatures":null,"memo":""}
+
+-- tx/two.tx --
+{"msg":[{"@type":"/vm.m_call","caller":"g1c0j899h88nwyvnzvh5jagpq6fkkyuj76nld6t0","send":"","pkg_path":"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom","func":"CreateWill","args":["g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5:100","1",""]},{"@type":"/vm.m_call","caller":"g1c0j899h88nwyvnzvh5jagpq6fkkyuj76nld6t0","send":"1000000ugnot","pkg_path":"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom","func":"Deposit","args":["1"]},{"@type":"/vm.m_call","caller":"g1c0j899h88nwyvnzvh5jagpq6fkkyuj76nld6t0","send":"2000000ugnot","pkg_path":"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom","func":"Deposit","args":["1"]}],"fee":{"gas_wanted":"100000000","gas_fee":"2000000ugnot"},"signatures":null,"memo":""}
