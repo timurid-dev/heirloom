@@ -1,13 +1,13 @@
 patchpkg "day = 24 * time.Hour" "day = 30 * time.Second"
 patchpkg "ObjectionPeriod = 7 * day" "ObjectionPeriod = day"
-loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1
 
 adduser bob
 adduser regular
 
 gnoland start -lock-transfer
 
-env H=gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+env H=gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1
 
 gnokey maketx call -pkgpath $H -func CreateWill -args "$bob_user_addr:100" -args 1 -args "" -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test regular
 stdout '(1 int)'

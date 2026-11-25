@@ -8,7 +8,7 @@ import (
 	"gno.land/p/nt/testutils/v0"
 	"gno.land/p/nt/uassert/v0"
 
-	"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+	"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1"
 )
 
 var (

@@ -10,10 +10,8 @@ import (
 	"gno.land/p/nt/markdown/sanitize/v0"
 	"gno.land/p/nt/ufmt/v0"
 
-	"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+	"gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1"
 )
-
-const heirloomPath = "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
 
 // Render shows the board, its keeper and the founder's will on Heirloom.
 func Render(path string) string {
@@ -22,10 +20,10 @@ func Render(path string) string {
 	}
 	var b strings.Builder
 	b.WriteString("# The Keeper's Board\n\n")
-	b.WriteString("A small board that shows [Heirloom](" + heirloomWeb() + ") at work. ")
+	b.WriteString("A small board that shows [Heirloom](" + heirloom.UserURL(founder) + ") at work. ")
 	b.WriteString("Anyone can post a note. The keeper can pin one note and remove any. ")
 	b.WriteString("The keeper is `heirloom.Holder(founder)`: the founder, until a released will of the founder hands the board to a successor. ")
-	b.WriteString("Every post, pin and removal counts as a sign of life on Heirloom for whoever signed it.\n\n")
+	b.WriteString("Every post, pin and removal counts as a sign of life on Heirloom for whoever signed it, unless it was signed with a session key.\n\n")
 	b.WriteString(keeperSection())
 	b.WriteString(pinnedSection())
 	b.WriteString(notesSection())
@@ -49,12 +47,12 @@ func keeperSection() string {
 		return b.String()
 	}
 	_, status, _, _ := heirloom.WillInfo(id)
-	willLink := "[will " + strconv.Itoa(id) + "](" + heirloomWeb() + ":will/" + strconv.Itoa(id) + ")"
+	willLink := "[will " + strconv.Itoa(id) + "](" + heirloom.WillURL(id) + ")"
 	switch status {
 	case "due":
 		b.WriteString("The founder's " + willLink + " is due: anyone but the founder can ask to release it now.\n\n")
 	case "requested":
-		b.WriteString("Someone asked to release the founder's " + willLink + ". Unless the founder shows a sign of life before the objection period ends, it will be released. The dates are on the will's page.\n\n")
+		b.WriteString("Someone asked to release the founder's " + willLink + ". Anyone can release it once the objection period ends, and until someone does, any sign of life from the founder cancels the request. The dates are on the will's page.\n\n")
 	default:
 		b.WriteString("If the founder stays silent for the whole silence period, anyone but the founder can ask to release the founder's " + willLink + ". The date is on the will's page.\n\n")
 	}
@@ -106,11 +104,7 @@ func userLink(addr address) string {
 	if len(s) > 14 {
 		short = s[:8] + "…" + s[len(s)-4:]
 	}
-	return "[" + short + "](" + heirloomWeb() + ":u/" + s + ")"
-}
-
-func heirloomWeb() string {
-	return strings.TrimPrefix(heirloomPath, runtime.ChainDomain())
+	return "[" + short + "](" + heirloom.UserURL(addr) + ")"
 }
 
 func formatTime(t time.Time) string {

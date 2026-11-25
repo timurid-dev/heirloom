@@ -1,6 +1,6 @@
 patchpkg "day = 24 * time.Hour" "day = 30 * time.Second"
 patchpkg "ObjectionPeriod = 7 * day" "ObjectionPeriod = day"
-loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1
 loadpkg gno.land/r/test/tok $WORK/tok
 loadpkg gno.land/r/test/middle $WORK/middle
 loadpkg gno.land/r/test/probe $WORK/probe
@@ -11,7 +11,7 @@ adduser eve
 
 gnoland start
 
-env H=gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+env H=gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1
 env TOK=gno.land/r/test/tok.TOK
 
 gnokey maketx call -pkgpath $H -func CreateWill -args "$bob_user_addr:70, $anna_user_addr:30" -args 1 -args $bob_user_addr -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
@@ -63,7 +63,7 @@ gnokey query vm/qeval --data "gno.land/r/test/tok.BalanceOf(\"$eve_user_addr\")"
 stdout '1000 int64'
 
 ! gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
-stderr 'the will can be released from'
+stderr 'can ask to release the will from'
 
 ! gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
 stderr 'you own this will'
@@ -162,7 +162,7 @@ gno = "0.9"
 -- middle/middle.gno --
 package middle
 
-import "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+import "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1"
 
 func Deposit(cur realm, id int) {
 	heirloom.Deposit(cross(cur), id)
@@ -190,7 +190,7 @@ import (
 	"gno.land/r/test/tok"
 )
 
-const heirloomPath = "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+const heirloomPath = "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1"
 
 func Held() string {
 	addr := chain.PackageAddress(heirloomPath)
@@ -201,7 +201,7 @@ func Held() string {
 -- run/deposit.gno --
 package main
 
-import "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+import "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1"
 
 func main(cur realm) {
 	heirloom.Deposit(cross(cur), 1)

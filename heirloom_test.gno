@@ -47,9 +47,10 @@ func silenceJustOver(id int) {
 }
 
 func silenceOver(id int) {
+	silenceJustOver(id)
 	w := getWill(id)
-	w.LastSeen = time.Now().Add(-w.Silence - ObjectionPeriod - 2*time.Minute)
-	w.RequestedAt, w.RequestedBy = time.Now().Add(-ObjectionPeriod-time.Minute), stranger
+	mustRequest(w, stranger)
+	w.RequestedAt = w.RequestedAt.Add(-ObjectionPeriod - time.Minute)
 }
 
 func heirs(pairs ...string) string {
@@ -68,7 +69,7 @@ func TestReleaseAndClaim(cur realm, t *testing.T) {
 
 	testing.SetRealm(testing.NewUserRealm(stranger))
 	withSend(0)
-	uassert.AbortsContains(t, cur, "the will can be released from", func() {
+	uassert.AbortsContains(t, cur, "can ask to release the will from", func() {
 		Release(cross(cur), id)
 	})
 	uassert.Equal(t, owner, Holder(owner))
@@ -221,7 +222,7 @@ func TestOwnerActivityRestartsTheClock(cur realm, t *testing.T) {
 
 	testing.SetRealm(testing.NewUserRealm(anna))
 	withSend(0)
-	uassert.AbortsContains(t, cur, "the will can be released from", func() {
+	uassert.AbortsContains(t, cur, "can ask to release the will from", func() {
 		Claim(cross(cur), id, anna, gnot)
 	})
 }
@@ -302,7 +303,8 @@ func TestClaimsAreIsolatedPerAsset(cur realm, t *testing.T) {
 	uassert.Equal(t, ownerBefore+1_000, test20.Token.BalanceOf(owner))
 	uassert.Equal(t, int64(0), test20.Token.BalanceOf(selfAddr))
 	uassert.Equal(t, annaBefore+1_000_000, balance(anna))
-	uassert.Equal(t, int64(1_000_000), getWill(id).balance(gnot))
+	uassert.Equal(t, int64(2_000_000), getWill(id).balance(gnot))
+	uassert.Equal(t, int64(1_000_000), state.totalGNOT)
 }
 
 func TestRevokeReturnsEverything(cur realm, t *testing.T) {
@@ -388,7 +390,7 @@ func TestValidation(cur realm, t *testing.T) {
 	})
 	testing.SetOriginCaller(stranger)
 	testing.SetRealm(testing.NewCodeRealm("gno.land/r/someone/shop"))
-	uassert.AbortsContains(t, cur, "the will can be released from", func() {
+	uassert.AbortsContains(t, cur, "can ask to release the will from", func() {
 		Release(cross(cur), 1)
 	})
 }
@@ -446,7 +448,7 @@ func TestRender(cur realm, t *testing.T) {
 	Release(cross(cur), id)
 	requested := Render("will/1")
 	uassert.True(t, strings.Contains(requested, "| requested by "))
-	uassert.True(t, strings.Contains(requested, "released unless the owner shows a sign of life"))
+	uassert.True(t, strings.Contains(requested, "until someone does, any sign of life from the owner cancels the request"))
 	uassert.True(t, strings.Contains(requested, "| Can be released from |"))
 	uassert.True(t, strings.Contains(requested, "7d to object"))
 	uassert.False(t, strings.Contains(requested, "[release the will]("))
@@ -886,7 +888,7 @@ func TestReleaseOpensExactlyWhenTheWaitEnds(cur realm, t *testing.T) {
 
 	testing.SetRealm(testing.NewUserRealm(stranger))
 	w.LastSeen = time.Now().Add(-w.Silence + time.Second)
-	uassert.AbortsContains(t, cur, "the will can be released from", func() {
+	uassert.AbortsContains(t, cur, "can ask to release the will from", func() {
 		Release(cross(cur), id)
 	})
 	w.LastSeen = time.Now().Add(-w.Silence)
@@ -914,16 +916,13 @@ func TestAnySignOfLifeCancelsARequest(cur realm, t *testing.T) {
 	withSend(0)
 	id := CreateWill(cross(cur), anna.String()+":100", "1", anna)
 	w := getWill(id)
-	request := func() {
-		silenceJustOver(id)
-		testing.SetRealm(testing.NewUserRealm(stranger))
-		testing.SetOriginCaller(stranger)
-		withSend(0)
-		Release(cross(cur), id)
-		uassert.True(t, w.status() == statusRequested)
-	}
 
-	request()
+	silenceJustOver(id)
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	testing.SetOriginCaller(stranger)
+	withSend(0)
+	Release(cross(cur), id)
+	uassert.True(t, w.status() == statusRequested)
 	testing.SetRealm(testing.NewUserRealm(owner))
 	withSend(1_000_000)
 	Deposit(cross(cur), id)
@@ -931,14 +930,24 @@ func TestAnySignOfLifeCancelsARequest(cur realm, t *testing.T) {
 	uassert.True(t, w.RequestedAt.IsZero())
 	uassert.Equal(t, int64(1_000_000), w.balance(gnot))
 
-	request()
+	silenceJustOver(id)
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	testing.SetOriginCaller(stranger)
+	withSend(0)
+	Release(cross(cur), id)
+	uassert.True(t, w.status() == statusRequested)
 	testing.SetOriginCaller(owner)
 	testing.SetRealm(testing.NewCodeRealm("gno.land/r/someone/app"))
 	withSend(0)
 	Touch(cross(cur))
 	uassert.True(t, w.status() == statusActive)
 
-	request()
+	silenceJustOver(id)
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	testing.SetOriginCaller(stranger)
+	withSend(0)
+	Release(cross(cur), id)
+	uassert.True(t, w.status() == statusRequested)
 	testing.SetRealm(testing.NewUserRealm(owner))
 	withSend(0)
 	Ping(cross(cur), id)
@@ -946,7 +955,7 @@ func TestAnySignOfLifeCancelsARequest(cur realm, t *testing.T) {
 	uassert.Equal(t, owner, Holder(owner))
 
 	testing.SetRealm(testing.NewUserRealm(stranger))
-	uassert.AbortsContains(t, cur, "the will can be released from", func() {
+	uassert.AbortsContains(t, cur, "can ask to release the will from", func() {
 		Release(cross(cur), id)
 	})
 }
@@ -998,7 +1007,7 @@ func TestSharesOfTheLargestAmountAddUp(cur realm, t *testing.T) {
 	withSend(0)
 	id := CreateWill(cross(cur), heirs(anna.String()+":70", boris.String()+":29", stranger.String()+":1"), "1", anna)
 	w := getWill(id)
-	w.snapshot.Set(gnot, int64(math.MaxInt64))
+	w.held.Set(gnot, int64(math.MaxInt64))
 
 	var total int64
 	for _, h := range w.Heirs {
@@ -1050,8 +1059,8 @@ func TestOwnerCanStillRevokeADueWill(cur realm, t *testing.T) {
 	id := CreateWill(cross(cur), anna.String()+":100", "1", anna)
 	withSend(1_000_000)
 	Deposit(cross(cur), id)
-	silenceOver(id)
-	uassert.True(t, getWill(id).isDue())
+	silenceJustOver(id)
+	uassert.True(t, getWill(id).status() == statusDue)
 
 	withSend(0)
 	before := balance(owner)
@@ -1062,6 +1071,14 @@ func TestOwnerCanStillRevokeADueWill(cur realm, t *testing.T) {
 	uassert.AbortsContains(t, cur, "no such will", func() {
 		Claim(cross(cur), id, anna, gnot)
 	})
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id = CreateWill(cross(cur), anna.String()+":100", "1", anna)
+	silenceOver(id)
+	uassert.True(t, getWill(id).status() == statusRequested)
+	Revoke(cross(cur), id)
+	uassert.True(t, getWill(id) == nil)
 }
 
 func TestHeirsAndSuccessorsCanHideAWill(cur realm, t *testing.T) {
@@ -1072,7 +1089,7 @@ func TestHeirsAndSuccessorsCanHideAWill(cur realm, t *testing.T) {
 	id := CreateWill(cross(cur), heirs(anna.String()+":60", boris.String()+":40"), "1", anna)
 	withSend(1_000_000)
 	Deposit(cross(cur), id)
-	uassert.True(t, strings.Contains(Render("u/"+anna.String()), "with `Hide`"))
+	uassert.True(t, strings.Contains(Render("u/"+anna.String()), "hide takes a will off this page"))
 
 	testing.SetRealm(testing.NewUserRealm(stranger))
 	withSend(0)
@@ -1100,4 +1117,81 @@ func TestHeirsAndSuccessorsCanHideAWill(cur realm, t *testing.T) {
 	Claim(cross(cur), id, anna, gnot)
 	uassert.Equal(t, before+500_000, balance(anna))
 	uassert.Equal(t, anna, Holder(owner))
+}
+
+func TestUnhidePutsAWillBack(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id := CreateWill(cross(cur), anna.String()+":100", "1", boris)
+	page := Render("u/" + anna.String())
+	uassert.True(t, strings.Contains(page, "· [hide]("))
+	uassert.True(t, strings.Contains(page, "func=Hide&id=1"))
+
+	testing.SetRealm(testing.NewUserRealm(anna))
+	uassert.AbortsWithMessage(t, cur, "will 1 is not hidden from your page", func() {
+		Unhide(cross(cur), id)
+	})
+	Hide(cross(cur), id)
+	uassert.True(t, strings.Contains(Render("u/"+anna.String()), "## Named as heir\n\nNone."))
+	Unhide(cross(cur), id)
+	uassert.True(t, strings.Contains(Render("u/"+anna.String()), "100%, active"))
+
+	testing.SetRealm(testing.NewUserRealm(boris))
+	Hide(cross(cur), id)
+	testing.SetRealm(testing.NewUserRealm(owner))
+	SetSuccessor(cross(cur), id, "")
+	testing.SetRealm(testing.NewUserRealm(boris))
+	Unhide(cross(cur), id)
+	uassert.True(t, strings.Contains(Render("u/"+boris.String()), "## Named as successor\n\nNone."))
+}
+
+func TestARealmCannotReleaseItsOwnWill(cur realm, t *testing.T) {
+	reset()
+
+	shop := testing.NewCodeRealm("gno.land/r/someone/shop")
+	testing.SetOriginCaller(stranger)
+	testing.SetRealm(shop)
+	withSend(0)
+	id := CreateWill(cross(cur), anna.String()+":100", "1", "")
+	uassert.Equal(t, shop.Address(), getWill(id).Owner)
+	silenceJustOver(id)
+	uassert.AbortsWithMessage(t, cur, "you own this will: call Ping to show a sign of life", func() {
+		Release(cross(cur), id)
+	})
+
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	uassert.Equal(t, "requested", Release(cross(cur), id))
+	silenceOver(id)
+	uassert.Equal(t, "released", Release(cross(cur), id))
+}
+
+func TestAReleasedWillKeepsItsHoldings(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id := CreateWill(cross(cur), heirs(anna.String()+":50", boris.String()+":50"), "1", "")
+	withSend(3_000_001)
+	Deposit(cross(cur), id)
+	silenceOver(id)
+
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	withSend(0)
+	Release(cross(cur), id)
+	Claim(cross(cur), id, boris, gnot)
+	uassert.Equal(t, int64(3_000_001), getWill(id).balance(gnot))
+	uassert.Equal(t, int64(1_500_001), state.totalGNOT)
+	uassert.True(t, strings.Contains(Render("will/1"), "## Assets at release"))
+	uassert.AbortsWithMessage(t, cur, boris.String()+" has already been paid their share of ugnot", func() {
+		Claim(cross(cur), id, boris, gnot)
+	})
+	Claim(cross(cur), id, anna, gnot)
+	uassert.Equal(t, int64(0), state.totalGNOT)
+}
+
+func TestLinksForOtherRealms(t *testing.T) {
+	uassert.Equal(t, webPath+":will/7", WillURL(7))
+	uassert.Equal(t, webPath+":u/"+anna.String(), UserURL(anna))
 }

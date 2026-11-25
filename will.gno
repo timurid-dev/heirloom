@@ -45,9 +45,8 @@ type Will struct {
 	RequestedBy address
 	ReleasedAt  time.Time
 
-	held     avl.Tree
-	snapshot avl.Tree
-	hidden   avl.Tree
+	held   avl.Tree
+	hidden avl.Tree
 }
 
 func (w *Will) releaseAt() time.Time {
@@ -116,10 +115,6 @@ func (w *Will) assets() []string {
 	return keys(&w.held)
 }
 
-func (w *Will) snapshotAssets() []string {
-	return keys(&w.snapshot)
-}
-
 func (w *Will) add(asset string, amount int64) {
 	if !w.held.Has(asset) && w.held.Size() >= MaxAssets {
 		panic(ufmt.Sprintf("a will can hold at most %d different assets", MaxAssets))
@@ -145,14 +140,10 @@ func (w *Will) take(asset string, amount int64) {
 
 func (w *Will) release() {
 	w.ReleasedAt = time.Now()
-	w.held.Iterate("", "", func(k string, v any) bool {
-		w.snapshot.Set(k, v)
-		return false
-	})
 }
 
 func (w *Will) shareOf(h *Heir, asset string) int64 {
-	total, _ := w.snapshot.Get(asset).(int64)
+	total := w.balance(asset)
 	if h != w.Heirs[0] {
 		return mulDiv(total, int64(h.Percent), 100)
 	}

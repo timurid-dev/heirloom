@@ -10,12 +10,8 @@ import (
 )
 
 func renderWill(w *Will) string {
-	held, snapshot := w.assets(), w.snapshotAssets()
-	listed := held
-	if w.isReleased() {
-		listed = snapshot
-	}
-	infos := describeAll(listed)
+	held := w.assets()
+	infos := describeAll(held)
 
 	var b strings.Builder
 	b.WriteString(ufmt.Sprintf("# Will %d of %s\n\n", w.ID, shortAddr(w.Owner)))
@@ -26,7 +22,7 @@ func renderWill(w *Will) string {
 	b.WriteString(heirsSection(w))
 	b.WriteString(adminSection(w))
 	if w.isReleased() {
-		b.WriteString(claimSection(w, snapshot, infos))
+		b.WriteString(claimSection(w, held, infos))
 	} else {
 		b.WriteString(actionsSection(w, held, infos))
 	}
@@ -39,7 +35,7 @@ func statusTable(w *Will) string {
 	case statusReleased:
 		whenLabel, when = "Released on", formatTime(w.ReleasedAt)
 	case statusRequested:
-		label += " by " + userLink(w.RequestedBy) + " on " + formatTime(w.RequestedAt) + ": released unless the owner shows a sign of life"
+		label += " by " + userLink(w.RequestedBy) + " on " + formatTime(w.RequestedAt) + ": anyone can release it once the objection period ends, and until someone does, any sign of life from the owner cancels the request"
 		whenLabel, when = "Can be released from", formatTimeFrom(w.objectionEnds())
 	case statusDue:
 		label += ": anyone but the owner can ask to release it"
@@ -49,11 +45,15 @@ func statusTable(w *Will) string {
 }
 
 func assetsSection(w *Will, held []string, infos assetInfos) string {
+	title := "## Assets"
+	if w.isReleased() {
+		title = "## Assets at release"
+	}
 	if len(held) == 0 {
-		return "## Assets\n\nNothing held.\n\n"
+		return title + "\n\nNothing held.\n\n"
 	}
 	var b strings.Builder
-	b.WriteString("## Assets\n\n| Asset | Held |\n| :--- | ---: |\n")
+	b.WriteString(title + "\n\n| Asset | Held |\n| :--- | ---: |\n")
 	for _, asset := range held {
 		b.WriteString("| " + infos[asset].label + " | " + infos[asset].amount(w.balance(asset)) + " |\n")
 	}
@@ -92,6 +92,9 @@ func adminSection(w *Will) string {
 			text += " The successor's own rights already passed to " + userLink(holder) + ", so they will end up there."
 		}
 	}
+	if !w.isReleased() && w.Successor != "" {
+		text += " The handover is final. Only calls the owner signs to Heirloom or to realms that call `Touch` count as signs of life; bank sends and other realms do not."
+	}
 	return "## Admin rights\n\n" + text + "\n\n"
 }
 
@@ -102,15 +105,15 @@ func nowHeldBy(successor address) string {
 	return ""
 }
 
-func claimSection(w *Will, snapshot []string, infos assetInfos) string {
-	if len(snapshot) == 0 {
+func claimSection(w *Will, assets []string, infos assetInfos) string {
+	if len(assets) == 0 {
 		return "## Claims\n\nNothing to claim.\n\n"
 	}
 	id := strconv.Itoa(w.ID)
 	var b strings.Builder
 	b.WriteString("## Claims\n\nAnyone can pay out a share; it always goes to the heir.\n\n")
 	b.WriteString("| Heir | Asset | Share | Status |\n| :--- | :--- | ---: | :--- |\n")
-	for _, asset := range snapshot {
+	for _, asset := range assets {
 		for _, h := range w.Heirs {
 			share := w.shareOf(h, asset)
 			status := "paid"
@@ -145,7 +148,8 @@ func actionsSection(w *Will, held []string, infos assetInfos) string {
 		link("1 GNOT", txURL("Deposit", 1_000_000, "id", id)) + " · " + link("10 GNOT", txURL("Deposit", 10_000_000, "id", id)) + " · " +
 		link("Revoke the will", txURL("Revoke", 0, "id", id)) + "\n\n")
 
-	b.WriteString("Deposit a GRC20 token, in its smallest unit. First approve `" + selfAddr.String() + "` as a spender in the token's realm.\n\n")
+	b.WriteString("Deposit a GRC20 token, in its smallest unit. First approve `" + selfAddr.String() + "` as a spender in the token's realm. ")
+	b.WriteString("Coins or tokens sent to that address directly are not added to any will and cannot be recovered: use Deposit or DepositToken.\n\n")
 	b.WriteString(ownerForm("DepositToken", id).
 		Input("token", "placeholder", "gno.land/r/gnoland/wugnot.wugnot", "description", "Token key").
 		Input("amount", "type", mdform.InputTypeNumber, "description", "Amount").

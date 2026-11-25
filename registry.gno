@@ -2,14 +2,17 @@ package heirloom
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
-	"gno.land/p/nt/avl/pager/v0"
 	"gno.land/p/nt/avl/v0"
 	"gno.land/p/nt/seqid/v0"
 )
 
-const listPageLen = 20
+const (
+	listPageLen  = 20
+	maxListPages = 1_000_000
+)
 
 func newWill(owner address, heirs []*Heir, silence time.Duration) *Will {
 	w := &Will{
@@ -70,6 +73,16 @@ func hideWill(w *Will, addr address) {
 	unindexWill(&state.successorWills, addr, w.ID)
 }
 
+func unhideWill(w *Will, addr address) {
+	w.hidden.Remove(addr.String())
+	if w.heir(addr) != nil {
+		indexWill(&state.heirWills, addr, w.ID)
+	}
+	if w.Successor == addr {
+		indexWill(&state.successorWills, addr, w.ID)
+	}
+}
+
 func deactivate(w *Will) {
 	state.activeByOwner.Remove(w.Owner.String())
 }
@@ -99,18 +112,28 @@ func willsPassingRightsTo(addr address, page int) ([]*Will, bool) {
 }
 
 func willPage(index *avl.Tree, addr address, page int) ([]*Will, bool) {
-	ids, ok := index.Get(addr.String()).(*avl.Tree)
-	if !ok {
+	if page < 1 || page > maxListPages {
 		return nil, false
 	}
-	p := pager.NewPager(ids, listPageLen, true).GetPage(page)
-	ws := make([]*Will, 0, len(p.Items))
-	for _, item := range p.Items {
-		if w, ok := state.wills.Get(item.Key).(*Will); ok {
+	prefix := addr.String() + "/"
+	skip := (page - 1) * listPageLen
+	var ws []*Will
+	more := false
+	index.ReverseIterate(prefix, addr.String()+"0", func(key string, _ any) bool {
+		if skip > 0 {
+			skip--
+			return false
+		}
+		if len(ws) == listPageLen {
+			more = true
+			return true
+		}
+		if w, ok := state.wills.Get(strings.TrimPrefix(key, prefix)).(*Will); ok {
 			ws = append(ws, w)
 		}
-	}
-	return ws, p.HasNext
+		return false
+	})
+	return ws, more
 }
 
 func activeCount() int {
@@ -118,21 +141,9 @@ func activeCount() int {
 }
 
 func indexWill(index *avl.Tree, addr address, id int) {
-	ids, ok := index.Get(addr.String()).(*avl.Tree)
-	if !ok {
-		ids = &avl.Tree{}
-		index.Set(addr.String(), ids)
-	}
-	ids.Set(willKey(id), true)
+	index.Set(addr.String()+"/"+willKey(id), true)
 }
 
 func unindexWill(index *avl.Tree, addr address, id int) {
-	ids, ok := index.Get(addr.String()).(*avl.Tree)
-	if !ok {
-		return
-	}
-	ids.Remove(willKey(id))
-	if ids.Size() == 0 {
-		index.Remove(addr.String())
-	}
+	index.Remove(addr.String() + "/" + willKey(id))
 }

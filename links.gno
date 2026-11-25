@@ -15,11 +15,11 @@ func backLink() string {
 }
 
 func willLink(id int) string {
-	return link("will "+strconv.Itoa(id), webPath+":will/"+strconv.Itoa(id))
+	return link("will "+strconv.Itoa(id), WillURL(id))
 }
 
 func userLink(addr address) string {
-	return link(shortAddr(addr), webPath+":u/"+addr.String())
+	return link(shortAddr(addr), UserURL(addr))
 }
 
 func userPageLink(label string, addr address, page int) string {

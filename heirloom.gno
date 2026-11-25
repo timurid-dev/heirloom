@@ -107,23 +107,26 @@ func Revoke(cur realm, id int) {
 	emit("WillRevoked", w)
 }
 
-// Release works in two steps; anyone but the owner can call it for both. Once
-// the owner has been silent for the whole silence period, the first call asks
-// to release will id. The owner then has 7 days to object: any sign of life
-// cancels the request. After that, the next call releases the will: it is
-// frozen, anyone can pay out the heirs, and the owner's admin rights pass to
-// the successor for good, unless an earlier released will has done so or the
-// successor's admin rights already pass to the owner.
-func Release(cur realm, id int) {
+// Release works in two steps and returns the will's new status, "requested"
+// or "released"; anyone but the owner can call it for both. Once the owner has
+// been silent for the whole silence period, the first call asks to release
+// will id. The owner then has 7 days to object, and any sign of life cancels
+// the request, even after the 7 days until someone completes the release.
+// After the 7 days, the next call releases the will: it is frozen, anyone can
+// pay out the heirs, and the owner's admin rights pass to the successor for
+// good, unless an earlier released will has done so or the successor's admin
+// rights already pass to the owner.
+func Release(cur realm, id int) string {
 	w, signer := enterAsOutsider(cur, id)
 	if w.isReleased() {
 		panic("the will is already released")
 	}
-	if !w.isRequested() {
+	if w.isRequested() {
+		mustRelease(w)
+	} else {
 		mustRequest(w, signer)
-		return
 	}
-	mustRelease(w)
+	return string(w.status())
 }
 
 // Claim sends heir's share of one asset ("ugnot" or a token key) from will id
@@ -139,7 +142,7 @@ func Claim(cur realm, id int, heir address, asset string) {
 	if !w.isReleased() {
 		mustRelease(w)
 	}
-	if !w.snapshot.Has(asset) {
+	if !w.held.Has(asset) {
 		panic("the will held no " + asset + " when it was released")
 	}
 	if h.hasClaimed(asset) {
@@ -151,14 +154,14 @@ func Claim(cur realm, id int, heir address, asset string) {
 		panic(h.Addr.String() + "'s share of " + asset + " rounds down to 0")
 	}
 	h.claimed.Set(asset, true)
-	payOut(cur, w, asset, h.Addr, share)
+	payShare(cur, asset, h.Addr, share)
 	emit("Claimed", w, append([]string{"heir", h.Addr.String()}, amountAttrs(asset, share)...)...)
 }
 
 // Hide takes will id off your page at :u/<your address> when the will names
 // you as an heir or successor, for example one you never agreed to. You stay
 // an heir or successor and can still be paid, and the owner cannot put the
-// will back on your page.
+// will back on your page; Unhide does.
 func Hide(cur realm, id int) {
 	caller := enter(cur)
 	w := mustGetWill(id)
@@ -170,6 +173,31 @@ func Hide(cur realm, id int) {
 	emit("WillHidden", w, "by", caller.String())
 }
 
+// Unhide puts will id back on your page at :u/<your address> after Hide, if
+// the will still names you as an heir or successor.
+func Unhide(cur realm, id int) {
+	caller := enter(cur)
+	w := mustGetWill(id)
+	if !w.hiddenFor(caller) {
+		panic("will " + strconv.Itoa(id) + " is not hidden from your page")
+	}
+	unhideWill(w, caller)
+	markAlive(unsafe.OriginCaller())
+	emit("WillUnhidden", w, "by", caller.String())
+}
+
+// WillURL returns the gnoweb path of the page of will id, for links from other
+// realms.
+func WillURL(id int) string {
+	return webPath + ":will/" + strconv.Itoa(id)
+}
+
+// UserURL returns the gnoweb path of the Heirloom page of addr: the wills it
+// made and the wills that name it.
+func UserURL(addr address) string {
+	return webPath + ":u/" + addr.String()
+}
+
 // Holder returns who holds the admin rights of addr: addr itself until a
 // released will of addr hands them to a successor, then that successor's
 // holder.
@@ -178,7 +206,7 @@ func Holder(addr address) address {
 }
 
 // ActiveWill returns the id of the unreleased will of owner, the one they can
-// still change. Its status is "active" or "due".
+// still change. Its status is "active", "due" or "requested".
 func ActiveWill(owner address) (id int, ok bool) {
 	if w := getActiveWill(normalize(owner.String())); w != nil {
 		return w.ID, true
@@ -207,21 +235,22 @@ func WillInfo(id int) (owner address, status string, releaseAt time.Time, ok boo
 	return w.Owner, string(w.status()), releaseAt, true
 }
 
-func mustBeDue(w *Will) {
-	if !w.isDue() {
-		panic("the owner was last seen on " + formatTime(w.LastSeen) + "; the will can be released from " + formatTimeFrom(w.releaseAt()))
-	}
+func notDue(w *Will) string {
+	return "the owner was last seen on " + formatTime(w.LastSeen) + "; anyone but the owner can ask to release the will from " + formatTimeFrom(w.releaseAt())
 }
 
 func mustRequest(w *Will, by address) {
-	mustBeDue(w)
+	if !w.isDue() {
+		panic(notDue(w))
+	}
 	w.RequestedAt, w.RequestedBy = time.Now(), by
 	emit("ReleaseRequested", w, "by", by.String())
 }
 
 func mustRelease(w *Will) {
-	mustBeDue(w)
 	switch {
+	case !w.isRequested() && !w.isDue():
+		panic(notDue(w))
 	case !w.isRequested():
 		panic("nobody has asked to release this will yet: call Release first")
 	case time.Now().Before(w.objectionEnds()):

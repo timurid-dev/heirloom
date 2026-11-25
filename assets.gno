@@ -24,6 +24,13 @@ func payOut(cur realm, w *Will, asset string, to address, amount int64) {
 	send(cur, asset, to, amount)
 }
 
+func payShare(cur realm, asset string, to address, amount int64) {
+	if asset == gnot {
+		state.totalGNOT -= amount
+	}
+	send(cur, asset, to, amount)
+}
+
 func pullToken(cur realm, w *Will, token string, amount int64) {
 	grc20reg.TransferFrom(0, cur, token, w.Owner, cur.Address(), amount)
 	credit(w, token, amount)

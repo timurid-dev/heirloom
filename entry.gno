@@ -46,10 +46,10 @@ func touchOwnWill(caller address, id int) *Will {
 }
 
 func enterAsOutsider(cur realm, id int) (*Will, address) {
-	enter(cur)
+	caller := enter(cur)
 	signer := unsafe.OriginCaller()
 	w := mustGetWill(id)
-	if signer == w.Owner && !w.isReleased() {
+	if (signer == w.Owner || caller == w.Owner) && !w.isReleased() {
 		panic("you own this will: call Ping to show a sign of life")
 	}
 	markAlive(signer)
