@@ -103,7 +103,6 @@ Owner calls need the master key and are refused once the will is released. Amoun
 
 - Tokens of all wills sit at the realm's single address. If a token's issuer can take or burn tokens from that address, `Withdraw` and `Revoke` of that token fail for the wills holding it. Other assets can still be withdrawn one by one, and sending the missing units back to the realm fixes it.
 - Admin rights pass only in realms that check `Holder`. Realms built on `ownable` or a fixed admin address are not affected.
-- The session-key rules are not covered by unit tests, because Gno's test package cannot simulate a session key. They rely on `runtime.GetSessionInfo` as documented in the standard library.
 - The 10-asset limit is not covered by a test: the test environment has one GRC20 token.
 - Storage deposit: a will with 2 heirs stores about 18 KB, with 10 heirs about 59 KB. It is refunded on `Revoke`, not after release.
 
@@ -117,6 +116,19 @@ gno test ./gno.land/r/<namespace>/keepersboard/
 ```
 
 Heirloom has 30 tests and The Keeper's Board has 2. They cover release and payout, rounding, admin succession through long chains and loops, a stranger trying to block a handover, calls made through other realms, deposit guards, and the rendered pages. `gno fmt` and `gno lint` are clean. The whole flow, from a pinned note to the board passing to the successor, was also run on a local `gnodev` node with real transactions.
+
+Two integration tests in [`integration/`](integration) run Heirloom on a real in-memory node with real transactions (gno v1.8.0, `gno.land/pkg/integration`). A day is patched down to 30 seconds so that a will can fall due during the test.
+
+- `heirloom_audit.txtar`: coins sent through `maketx run`, to a function that takes none, or through another realm are refused; another realm cannot withdraw or revoke for the owner; GRC20 deposits; release, payout of both assets to two heirs, and the realm's own GNOT and token balances back at zero.
+- `heirloom_session.txtar`: a session key cannot ping, change or revoke a will, directly or through `maketx run`, and its `Touch` does not keep a will from falling due.
+
+Copy them to `gno.land/pkg/integration/testdata/` in a gno checkout that also holds the realm under `examples/`, then run:
+
+```sh
+go test ./gno.land/pkg/integration/ -run 'TestTestdata/heirloom_'
+```
+
+They wait with `exec sleep`, so they need a `sleep` command on the `PATH`.
 
 ## License
 

@@ -1,0 +1,53 @@
+patchpkg "day = 24 * time.Hour" "day = 30 * time.Second"
+loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+
+adduser bob
+adduser eve
+
+gnoland start
+
+env H=gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+env SESS_PUB=gpub1pgfj7ard9eg82cjtv4u4xetrwqer2dntxyfzxz3pqgh53dsxlhhczk94eww7xzjfap8tknctvrkflvvkx4aknzqzt9c5wfdzlgq
+
+gnokey maketx call -pkgpath $H -func CreateWill -args "$bob_user_addr:100" -args 1 -args "" -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stdout '(1 int)'
+
+input success myself purchase tray reject demise scene little legend someone lunar hope media goat regular test area smart save flee surround attack rapid smoke
+input ''
+input ''
+gnokey add -recover sess
+stdout 'g1c0j899h88nwyvnzvh5jagpq6fkkyuj76nld6t0'
+
+gnokey maketx session create -pubkey $SESS_PUB -expires-at 24h -allow-paths '*' -spend-limit 100000000ugnot -gas-fee 1000000ugnot -gas-wanted 10000000 -chainid=tendermint_test test1
+stdout OK!
+
+! gnokey maketx call -master test1 -pkgpath $H -func Ping -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test sess
+stderr 'sign with your master key'
+
+! gnokey maketx call -master test1 -pkgpath $H -func SetSilence -args 1 -args 3650 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test sess
+stderr 'sign with your master key'
+
+! gnokey maketx call -master test1 -pkgpath $H -func Revoke -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test sess
+stderr 'sign with your master key'
+
+! gnokey maketx run -master test1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test sess $WORK/run/ping.gno
+stderr 'sign with your master key'
+
+exec sleep 35
+gnokey maketx send -send 1ugnot -to $eve_user_addr -gas-fee 1000000ugnot -gas-wanted 10000000 -chainid=tendermint_test bob
+stdout OK!
+
+gnokey maketx call -master test1 -pkgpath $H -func Touch -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test sess
+stdout OK!
+
+gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+
+-- run/ping.gno --
+package main
+
+import "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+
+func main(cur realm) {
+	heirloom.Ping(cross(cur), 1)
+}

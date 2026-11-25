@@ -1,0 +1,189 @@
+patchpkg "day = 24 * time.Hour" "day = 30 * time.Second"
+loadpkg gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+loadpkg gno.land/r/test/tok $WORK/tok
+loadpkg gno.land/r/test/middle $WORK/middle
+loadpkg gno.land/r/test/probe $WORK/probe
+
+adduser bob
+adduser anna
+adduser eve
+
+gnoland start
+
+env H=gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom
+env TOK=gno.land/r/test/tok.TOK
+
+gnokey maketx call -pkgpath $H -func CreateWill -args "$bob_user_addr:70, $anna_user_addr:30" -args 1 -args $bob_user_addr -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stdout '(1 int)'
+
+gnokey maketx call -pkgpath $H -func Deposit -args 1 -send 5000000ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stdout OK!
+gnokey query vm/qeval --data "gno.land/r/test/probe.Held()"
+stdout '"gnot=5000000 tok=0"'
+
+! gnokey maketx run -send 1000000ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1 $WORK/run/deposit.gno
+stderr 'coins must be sent with a direct call'
+
+! gnokey maketx call -pkgpath $H -func Ping -args 1 -send 1000000ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stderr 'this function does not accept coins'
+
+! gnokey maketx call -pkgpath gno.land/r/test/middle -func Deposit -args 1 -send 1000000ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stderr 'coins must be sent with a direct call'
+
+! gnokey maketx call -pkgpath gno.land/r/test/middle -func Withdraw -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stderr 'only the owner can change will 1'
+
+! gnokey maketx call -pkgpath gno.land/r/test/middle -func Revoke -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stderr 'only the owner can change will 1'
+
+! gnokey maketx call -pkgpath $H -func Withdraw -args 1 -args ugnot -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stderr 'only the owner can change will 1'
+
+gnokey query vm/qeval --data "gno.land/r/test/probe.Held()"
+stdout '"gnot=5000000 tok=0"'
+
+gnokey maketx call -pkgpath gno.land/r/test/tok -func Faucet -args 1000 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stdout OK!
+gnokey maketx call -pkgpath gno.land/r/test/tok -func Faucet -args 1000 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+gnokey maketx call -pkgpath gno.land/r/test/tok -func ApproveRealm -args $H -args 1000 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+gnokey maketx call -pkgpath gno.land/r/test/tok -func ApproveRealm -args $H -args 1000 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stdout OK!
+
+! gnokey maketx call -pkgpath $H -func DepositToken -args 1 -args $TOK -args 1000 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stderr 'only the owner can change will 1'
+
+gnokey maketx call -pkgpath $H -func DepositToken -args 1 -args $TOK -args 1000 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stdout OK!
+gnokey query vm/qeval --data "gno.land/r/test/probe.Held()"
+stdout '"gnot=5000000 tok=1000"'
+gnokey query vm/qeval --data "gno.land/r/test/tok.BalanceOf(\"$eve_user_addr\")"
+stdout '1000 int64'
+
+! gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stderr 'the will can be released from'
+
+! gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stderr 'you own this will'
+
+exec sleep 35
+gnokey maketx call -pkgpath gno.land/r/test/tok -func Faucet -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+
+gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+
+! gnokey maketx call -pkgpath $H -func Withdraw -args 1 -args ugnot -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
+stderr 'will 1 is already released'
+
+gnokey maketx call -pkgpath $H -func Claim -args 1 -args $bob_user_addr -args ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+gnokey maketx call -pkgpath $H -func Claim -args 1 -args $anna_user_addr -args ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+gnokey maketx call -pkgpath $H -func Claim -args 1 -args $bob_user_addr -args $TOK -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+gnokey maketx call -pkgpath $H -func Claim -args 1 -args $anna_user_addr -args $TOK -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
+
+! gnokey maketx call -pkgpath $H -func Claim -args 1 -args $bob_user_addr -args ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stderr 'has already been paid their share of ugnot'
+
+gnokey query vm/qeval --data "gno.land/r/test/probe.Held()"
+stdout '"gnot=0 tok=0"'
+gnokey query bank/balances/$bob_user_addr
+stdout '"1003500000ugnot"'
+gnokey query bank/balances/$anna_user_addr
+stdout '"1001500000ugnot"'
+gnokey query vm/qeval --data "gno.land/r/test/tok.BalanceOf(\"$bob_user_addr\")"
+stdout '700 int64'
+gnokey query vm/qeval --data "gno.land/r/test/tok.BalanceOf(\"$anna_user_addr\")"
+stdout '300 int64'
+gnokey query vm/qeval --data "$H.Holder(\"$test1_user_addr\")"
+stdout $bob_user_addr
+
+-- tok/gnomod.toml --
+module = "gno.land/r/test/tok"
+gno = "0.9"
+-- tok/tok.gno --
+package tok
+
+import (
+	"chain"
+
+	"gno.land/p/nt/grc20/v0"
+	"gno.land/r/nt/grc20reg/v0"
+)
+
+var (
+	Token  *grc20.Token
+	ledger *grc20.PrivateLedger
+)
+
+func init(cur realm) {
+	Token, ledger = grc20.NewToken("Test Token", "TOK", 0, 0, cur)
+	grc20reg.Register(cross(cur), Token, "")
+}
+
+func Faucet(cur realm, amount int64) {
+	ledger.Mint(cur.Previous().Address(), amount)
+}
+
+func ApproveRealm(cur realm, pkgPath string, amount int64) {
+	if err := ledger.Approve(cur.Previous().Address(), chain.PackageAddress(pkgPath), amount); err != nil {
+		panic(err)
+	}
+}
+
+func BalanceOf(addr address) int64 { return Token.BalanceOf(addr) }
+
+-- middle/gnomod.toml --
+module = "gno.land/r/test/middle"
+gno = "0.9"
+-- middle/middle.gno --
+package middle
+
+import "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+
+func Deposit(cur realm, id int) {
+	heirloom.Deposit(cross(cur), id)
+}
+
+func Withdraw(cur realm, id int) {
+	heirloom.Withdraw(cross(cur), id, "ugnot", 1)
+}
+
+func Revoke(cur realm, id int) {
+	heirloom.Revoke(cross(cur), id)
+}
+
+-- probe/gnomod.toml --
+module = "gno.land/r/test/probe"
+gno = "0.9"
+-- probe/probe.gno --
+package probe
+
+import (
+	"chain"
+	"chain/banker"
+	"strconv"
+
+	"gno.land/r/test/tok"
+)
+
+const heirloomPath = "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+
+func Held() string {
+	addr := chain.PackageAddress(heirloomPath)
+	gnot := banker.NewReadonlyBanker().GetCoin(addr, "ugnot")
+	return "gnot=" + strconv.FormatInt(gnot, 10) + " tok=" + strconv.FormatInt(tok.BalanceOf(addr), 10)
+}
+
+-- run/deposit.gno --
+package main
+
+import "gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom"
+
+func main(cur realm) {
+	heirloom.Deposit(cross(cur), 1)
+}
