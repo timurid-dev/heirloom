@@ -1,17 +1,21 @@
 package heirloom
 
-import "gno.land/p/nt/avl/v0"
+import (
+	"time"
+
+	"gno.land/p/nt/avl/v0"
+)
 
 type handover struct {
-	To     address
-	WillID int
+	To         address
+	WillID     int
+	ReturnedAt time.Time
 }
 
 type succession struct {
 	handovers avl.Tree
-	parent    avl.Tree
-	rank      avl.Tree
-	holder    avl.Tree
+	returns   avl.Tree
+	declined  avl.Tree
 }
 
 type adminOutcome int
@@ -20,6 +24,7 @@ const (
 	adminPending adminOutcome = iota
 	adminHandedOverHere
 	adminHandedOverByAnother
+	adminReturned
 	adminNoSuccessor
 	adminStaysWithOwner
 )
@@ -29,65 +34,58 @@ func handoverOf(owner address) (handover, bool) {
 	return h, ok
 }
 
-func groupOf(addr address) address {
+func holderOf(addr address) address {
 	for {
-		parent, ok := state.rights.parent.Get(addr.String()).(address)
+		h, ok := handoverOf(addr)
 		if !ok {
 			return addr
 		}
-		addr = parent
+		addr = h.To
 	}
 }
 
-func groupRank(root address) int {
-	rank, _ := state.rights.rank.Get(root.String()).(int)
-	return rank
-}
-
-func holderOfGroup(root address) address {
-	if holder, ok := state.rights.holder.Get(root.String()).(address); ok {
-		return holder
-	}
-	return root
-}
-
-func holderOf(addr address) address {
-	return holderOfGroup(groupOf(addr))
-}
-
-func joinGroups(from, to address) {
-	holder := holderOfGroup(to)
-	fromRank, toRank := groupRank(from), groupRank(to)
-	if fromRank > toRank {
-		from, to = to, from
-	}
-	if fromRank == toRank {
-		state.rights.rank.Set(to.String(), toRank+1)
-	}
-	state.rights.parent.Set(from.String(), to)
-	state.rights.holder.Remove(from.String())
-	state.rights.holder.Set(to.String(), holder)
-}
-
-func handoverGroups(w *Will) (from, to address, ok bool) {
+func canHandOver(w *Will) bool {
 	if _, done := handoverOf(w.Owner); done || w.Successor == "" {
-		return "", "", false
+		return false
 	}
-	from, to = groupOf(w.Owner), groupOf(w.Successor)
-	return from, to, from != to
+	return holderOf(w.Successor) != w.Owner
 }
 
 func recordHandover(w *Will) bool {
-	from, to, ok := handoverGroups(w)
-	if !ok {
+	if !canHandOver(w) {
 		return false
 	}
-	state.rights.handovers.Set(w.Owner.String(), handover{w.Successor, w.ID})
-	joinGroups(from, to)
+	state.rights.handovers.Set(w.Owner.String(), handover{To: w.Successor, WillID: w.ID})
 	return true
 }
 
+func mustReturnRights(owner, by address) handover {
+	h, ok := handoverOf(owner)
+	if !ok || h.To != by {
+		panic("you do not hold the admin rights of " + owner.String() + " by a handover from them")
+	}
+	state.rights.handovers.Remove(owner.String())
+	h.ReturnedAt = time.Now()
+	state.rights.returns.Set(willKey(h.WillID), h)
+	return h
+}
+
+func declineKey(owner, successor address) string {
+	return owner.String() + "/" + successor.String()
+}
+
+func hasDeclined(owner, successor address) bool {
+	return state.rights.declined.Has(declineKey(owner, successor))
+}
+
+func recordDecline(owner, successor address) {
+	state.rights.declined.Set(declineKey(owner, successor), true)
+}
+
 func adminOutcomeOf(w *Will) (adminOutcome, handover) {
+	if h, ok := state.rights.returns.Get(willKey(w.ID)).(handover); ok {
+		return adminReturned, h
+	}
 	if h, done := handoverOf(w.Owner); done {
 		if h.WillID == w.ID {
 			return adminHandedOverHere, h
@@ -97,7 +95,7 @@ func adminOutcomeOf(w *Will) (adminOutcome, handover) {
 	if w.Successor == "" {
 		return adminNoSuccessor, handover{}
 	}
-	if _, _, ok := handoverGroups(w); w.isReleased() || !ok {
+	if w.isReleased() || !canHandOver(w) {
 		return adminStaysWithOwner, handover{}
 	}
 	return adminPending, handover{}

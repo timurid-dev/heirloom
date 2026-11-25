@@ -24,10 +24,10 @@ func newRouter() *mux.Router {
 		res.Write(renderWill(w))
 	})
 	router.HandleFunc("u/{addr}", func(res *mux.ResponseWriter, req *mux.Request) {
-		res.Write(userPage(req.GetVar("addr"), "1"))
+		res.Write(userPage(req.GetVar("addr"), "", "0"))
 	})
-	router.HandleFunc("u/{addr}/{page}", func(res *mux.ResponseWriter, req *mux.Request) {
-		res.Write(userPage(req.GetVar("addr"), req.GetVar("page")))
+	router.HandleFunc("u/{addr}/{list}/{before}", func(res *mux.ResponseWriter, req *mux.Request) {
+		res.Write(userPage(req.GetVar("addr"), req.GetVar("list"), req.GetVar("before")))
 	})
 	router.SetNotFoundHandler(func(res *mux.ResponseWriter, _ *mux.Request) {
 		res.Write(notFound("Page not found"))
@@ -35,23 +35,23 @@ func newRouter() *mux.Router {
 	return router
 }
 
-// Render serves the home page, "will/<id>", and "u/<address>" with an
-// optional page number, "u/<address>/<n>".
+// Render serves the home page, "will/<id>", "u/<address>", and
+// "u/<address>/<made|heir|successor>/<before id>" for older entries of one list.
 func Render(path string) string {
 	route := strings.Trim(path, "/")
 	return router.Render(route)
 }
 
-func userPage(rawAddr, rawPage string) string {
+func userPage(rawAddr, list, rawBefore string) string {
 	addr := normalize(rawAddr)
 	if !addr.IsValid() {
 		return notFound("Invalid address")
 	}
-	page, err := strconv.Atoi(rawPage)
-	if err != nil || page < 1 {
+	before, err := strconv.Atoi(rawBefore)
+	if err != nil || before < 0 || (list != "" && before == 0) {
 		return notFound("Page not found")
 	}
-	return renderUser(addr, page)
+	return renderUser(addr, list, before)
 }
 
 func notFound(title string) string {

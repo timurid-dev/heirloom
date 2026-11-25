@@ -35,13 +35,15 @@ func statusTable(w *Will) string {
 	case statusReleased:
 		whenLabel, when = "Released on", formatTime(w.ReleasedAt)
 	case statusRequested:
-		label += " by " + userLink(w.RequestedBy) + " on " + formatTime(w.RequestedAt) + ": anyone can release it once the objection period ends, and until someone does, any sign of life from the owner cancels the request"
+		label += " by " + userLink(w.RequestedBy) + " on " + formatTime(w.RequestedAt)
 		whenLabel, when = "Can be released from", formatTimeFrom(w.objectionEnds())
-	case statusDue:
-		label += ": anyone but the owner can ask to release it"
 	}
-	return "| Status | Last sign of life | Silence period | " + whenLabel + " |\n| :--- | :--- | :--- | :--- |\n" +
+	table := "| Status | Last sign of life | Silence period | " + whenLabel + " |\n| :--- | :--- | :--- | :--- |\n" +
 		ufmt.Sprintf("| %s | %s | %s | %s |\n\n", label, formatTime(w.LastSeen), formatDuration(w.Silence), when)
+	if w.status() == statusRequested {
+		table += "Until someone completes the release, any sign of life from the owner cancels the request.\n\n"
+	}
+	return table
 }
 
 func assetsSection(w *Will, held []string, infos assetInfos) string {
@@ -74,8 +76,11 @@ func adminSection(w *Will) string {
 	released := w.isReleased()
 	text := ""
 	switch {
+	case outcome == adminReturned:
+		text = "When this will was released, it handed them to " + userLink(h.To) + ", who handed them back on " + formatTime(h.ReturnedAt) + "."
 	case outcome == adminHandedOverHere:
-		text = "When this will was released, it handed them to " + userLink(h.To) + "." + nowHeldBy(h.To)
+		text = "When this will was released, it handed them to " + userLink(h.To) + "." + nowHeldBy(h.To) +
+			" Only " + userLink(h.To) + " can " + link("return them", txURL("ReturnRights", 0, "owner", w.Owner.String())) + "."
 	case outcome == adminHandedOverByAnother:
 		text = "Releasing " + willLink(h.WillID) + " handed them to " + userLink(h.To) + "." + nowHeldBy(h.To)
 	case outcome == adminNoSuccessor && released:
@@ -92,8 +97,8 @@ func adminSection(w *Will) string {
 			text += " The successor's own rights already passed to " + userLink(holder) + ", so they will end up there."
 		}
 	}
-	if !w.isReleased() && w.Successor != "" {
-		text += " The handover is final. Only calls the owner signs to Heirloom or to realms that call `Touch` count as signs of life; bank sends and other realms do not."
+	if outcome == adminPending {
+		text += " The successor can " + link("decline", txURL("Decline", 0, "id", strconv.Itoa(w.ID))) + " before release, or hand them back after it."
 	}
 	return "## Admin rights\n\n" + text + "\n\n"
 }
@@ -111,7 +116,13 @@ func claimSection(w *Will, assets []string, infos assetInfos) string {
 	}
 	id := strconv.Itoa(w.ID)
 	var b strings.Builder
-	b.WriteString("## Claims\n\nAnyone can pay out a share; it always goes to the heir.\n\n")
+	b.WriteString("## Claims\n\nAnyone can pay out a share; it always goes to the heir.")
+	for _, h := range w.Heirs {
+		if unpaid(w, h) {
+			b.WriteString(" " + link("Pay out all to "+shortAddr(h.Addr), txURL("ClaimAll", 0, "id", id, "heir", h.Addr.String())) + ".")
+		}
+	}
+	b.WriteString("\n\n")
 	b.WriteString("| Heir | Asset | Share | Status |\n| :--- | :--- | ---: | :--- |\n")
 	for _, asset := range assets {
 		for _, h := range w.Heirs {
@@ -199,4 +210,13 @@ func heirList(w *Will) string {
 		items[i] = h.Addr.String() + ":" + strconv.Itoa(h.Percent)
 	}
 	return strings.Join(items, ", ")
+}
+
+func unpaid(w *Will, h *Heir) bool {
+	for _, asset := range w.assets() {
+		if w.shareOf(h, asset) > 0 && !h.hasClaimed(asset) {
+			return true
+		}
+	}
+	return false
 }

@@ -438,7 +438,7 @@ func TestRender(cur realm, t *testing.T) {
 
 	silenceJustOver(id)
 	due := Render("will/1")
-	uassert.True(t, strings.Contains(due, "due: anyone but the owner can ask to release it"))
+	uassert.True(t, strings.Contains(due, "| due |"))
 	uassert.True(t, strings.Contains(due, "[ask to release the will]("))
 	uassert.True(t, strings.Contains(due, "The owner then has 7 days to object."))
 	uassert.True(t, strings.Contains(Render("u/"+anna.String()), "70%, due"))
@@ -448,7 +448,7 @@ func TestRender(cur realm, t *testing.T) {
 	Release(cross(cur), id)
 	requested := Render("will/1")
 	uassert.True(t, strings.Contains(requested, "| requested by "))
-	uassert.True(t, strings.Contains(requested, "until someone does, any sign of life from the owner cancels the request"))
+	uassert.True(t, strings.Contains(requested, "any sign of life from the owner cancels the request"))
 	uassert.True(t, strings.Contains(requested, "| Can be released from |"))
 	uassert.True(t, strings.Contains(requested, "7d to object"))
 	uassert.False(t, strings.Contains(requested, "[release the will]("))
@@ -482,6 +482,9 @@ func TestRender(cur realm, t *testing.T) {
 	uassert.True(t, strings.Contains(Render("u/"+anna.String()+"/2"), "Page not found"))
 	uassert.True(t, strings.Contains(Render("u/nope"), "Invalid address"))
 	uassert.True(t, strings.Contains(Render("u/"+anna.String()+"/0"), "Page not found"))
+	uassert.True(t, strings.Contains(Render("u/"+anna.String()+"/heir/0"), "Page not found"))
+	uassert.True(t, strings.Contains(Render("u/"+anna.String()+"/gifts/5"), "Page not found"))
+	uassert.True(t, strings.Contains(Render("u/"+anna.String()+"/heir/1"), "Page not found"))
 	uassert.True(t, strings.Contains(Render("x/y"), "Page not found"))
 }
 
@@ -495,8 +498,22 @@ func TestHeirPagePaginates(cur realm, t *testing.T) {
 	}
 	first := Render("u/" + anna.String())
 	uassert.Equal(t, listPageLen, strings.Count(first, "100%"))
-	uassert.True(t, strings.Contains(first, "[More]("))
-	uassert.Equal(t, 3, strings.Count(Render("u/"+anna.String()+"/2"), "100%"))
+	more := moreLink(first)
+	uassert.True(t, strings.HasPrefix(more, "u/"+anna.String()+"/heir/"))
+	second := Render(more)
+	uassert.Equal(t, 3, strings.Count(second, "100%"))
+	uassert.False(t, strings.Contains(second, "[More]("))
+	uassert.False(t, strings.Contains(second, "## Wills made"))
+}
+
+func moreLink(page string) string {
+	i := strings.Index(page, "[More](")
+	if i < 0 {
+		return ""
+	}
+	rest := page[i+len("[More]("):]
+	url := rest[:strings.Index(rest, ")")]
+	return strings.TrimPrefix(url, webPath+":")
 }
 
 func TestOwnPagePaginates(cur realm, t *testing.T) {
@@ -514,7 +531,7 @@ func TestOwnPagePaginates(cur realm, t *testing.T) {
 	first := Render("u/" + owner.String())
 	uassert.Equal(t, listPageLen, strings.Count(first, ": released"))
 	uassert.Equal(t, 1, strings.Count(first, "[More]("))
-	second := Render("u/" + owner.String() + "/2")
+	second := Render(moreLink(first))
 	uassert.True(t, strings.Contains(second, "## Wills made"))
 	uassert.Equal(t, 2, strings.Count(second, ": released"))
 	uassert.False(t, strings.Contains(second, "[More]("))
@@ -1194,4 +1211,103 @@ func TestAReleasedWillKeepsItsHoldings(cur realm, t *testing.T) {
 func TestLinksForOtherRealms(t *testing.T) {
 	uassert.Equal(t, webPath+":will/7", WillURL(7))
 	uassert.Equal(t, webPath+":u/"+anna.String(), UserURL(anna))
+}
+
+func TestTheSuccessorCanReturnTheRights(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	first := CreateWill(cross(cur), boris.String()+":100", "1", anna)
+	silenceOver(first)
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	Release(cross(cur), first)
+	uassert.Equal(t, anna, Holder(owner))
+	uassert.True(t, strings.Contains(Render("will/1"), "func=ReturnRights"))
+
+	uassert.AbortsContains(t, cur, "you do not hold the admin rights of", func() {
+		ReturnRights(cross(cur), owner)
+	})
+	testing.SetRealm(testing.NewUserRealm(anna))
+	ReturnRights(cross(cur), owner)
+	uassert.Equal(t, owner, Holder(owner))
+	uassert.True(t, strings.Contains(Render("will/1"), "who handed them back on"))
+	uassert.AbortsContains(t, cur, "you do not hold the admin rights of", func() {
+		ReturnRights(cross(cur), owner)
+	})
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	second := CreateWill(cross(cur), boris.String()+":100", "1", boris)
+	silenceOver(second)
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	Release(cross(cur), second)
+	uassert.Equal(t, boris, Holder(owner))
+}
+
+func TestASuccessorCanDecline(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id := CreateWill(cross(cur), boris.String()+":100", "1", anna)
+	uassert.True(t, strings.Contains(Render("will/1"), "func=Decline"))
+
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	uassert.AbortsWithMessage(t, cur, "you are not the successor of will 1", func() {
+		Decline(cross(cur), id)
+	})
+	testing.SetRealm(testing.NewUserRealm(anna))
+	Decline(cross(cur), id)
+	uassert.Equal(t, address(""), getWill(id).Successor)
+	uassert.True(t, strings.Contains(Render("u/"+anna.String()), "## Named as successor\n\nNone."))
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	uassert.AbortsWithMessage(t, cur, anna.String()+" declined to be your successor", func() {
+		SetSuccessor(cross(cur), id, anna)
+	})
+	Revoke(cross(cur), id)
+	uassert.AbortsWithMessage(t, cur, anna.String()+" declined to be your successor", func() {
+		CreateWill(cross(cur), boris.String()+":100", "1", anna)
+	})
+
+	id = CreateWill(cross(cur), boris.String()+":100", "1", boris)
+	silenceOver(id)
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	Release(cross(cur), id)
+	testing.SetRealm(testing.NewUserRealm(boris))
+	uassert.AbortsContains(t, cur, "is already released; use ReturnRights", func() {
+		Decline(cross(cur), id)
+	})
+}
+
+func TestClaimAllPaysEveryAsset(cur realm, t *testing.T) {
+	reset()
+
+	test20.PrivateLedger.Mint(owner, 1_000)
+	test20.PrivateLedger.Approve(owner, selfAddr, 1_000)
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id := CreateWill(cross(cur), heirs(anna.String()+":50", boris.String()+":50"), "1", "")
+	DepositToken(cross(cur), id, test20Key, 1_000)
+	withSend(1_000_001)
+	Deposit(cross(cur), id)
+	silenceOver(id)
+
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	withSend(0)
+	gnotBefore, tokensBefore := balance(anna), test20.Token.BalanceOf(anna)
+	ClaimAll(cross(cur), id, anna)
+	uassert.Equal(t, gnotBefore+500_001, balance(anna))
+	uassert.Equal(t, tokensBefore+500, test20.Token.BalanceOf(anna))
+	uassert.AbortsWithMessage(t, cur, anna.String()+" has nothing left to claim", func() {
+		ClaimAll(cross(cur), id, anna)
+	})
+	uassert.True(t, strings.Contains(Render("will/1"), "Pay out all to "+shortAddr(boris)))
+
+	Claim(cross(cur), id, boris, gnot)
+	borisTokens := test20.Token.BalanceOf(boris)
+	ClaimAll(cross(cur), id, boris)
+	uassert.Equal(t, borisTokens+500, test20.Token.BalanceOf(boris))
+	uassert.Equal(t, int64(0), test20.Token.BalanceOf(selfAddr))
+	uassert.False(t, strings.Contains(Render("will/1"), "Pay out all"))
 }

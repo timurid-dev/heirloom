@@ -14,10 +14,9 @@ func renderHome() string {
 	var b strings.Builder
 	b.WriteString("# Heirloom\n\n")
 	b.WriteString("Leave your GNOT and tokens to the people you choose, and your admin rights in realms that check `Holder`. ")
-	b.WriteString("If you show no sign of life for the period you set, anyone else can ask to release the will. ")
-	b.WriteString("You then have " + strconv.Itoa(int(ObjectionPeriod/day)) + " more days to object with any sign of life; after that, the will is released and anyone can pay out your heirs' shares. ")
-	b.WriteString("Until then everything stays yours. Every successful call you sign to Heirloom restarts the clock, and so does using a realm that calls `Touch`. ")
-	b.WriteString("Other activity on the chain and transactions signed with a session key do not, and a session key cannot create, change or ping a will: sign those with your master key.\n\n")
+	b.WriteString("If you show no sign of life for the period you set, anyone else can ask to release the will, and you have " + strconv.Itoa(int(ObjectionPeriod/day)) + " days to object. ")
+	b.WriteString("After that, the next call to `Release` releases it and anyone can pay out your heirs. Until then everything stays yours. ")
+	b.WriteString("A sign of life is any call you sign with your master key to Heirloom or to a realm that calls `Touch`; session keys and other activity on the chain do not count.\n\n")
 
 	b.WriteString("| Unreleased wills | GNOT held | Wills released |\n| :---: | :---: | :---: |\n")
 	b.WriteString(ufmt.Sprintf("| %d | %s | %d |\n\n", active, describe(gnot).amount(gnotHeld), released))
@@ -47,7 +46,7 @@ func renderHome() string {
 	b.WriteString("var admin = address(\"g1...\")\n\n")
 	b.WriteString("func AdminOnly(cur realm) {\n\tif !cur.IsCurrent() || cur.Previous().Address() != heirloom.Holder(admin) {\n\t\tpanic(\"admin only\")\n\t}\n\theirloom.Touch(cross(cur))\n}\n\n")
 	b.WriteString("func Use(cur realm) {\n\theirloom.Touch(cross(cur))\n}\n```\n\n")
-	b.WriteString("`Touch` only vouches for the account that signed the transaction, so no realm can keep someone else's will from being released. It ignores transactions signed with a session key, so an admin who works through a session key also needs to call `Ping` now and then. ")
-	b.WriteString("`Holder` returns the address itself until a released will of that address hands its admin rights on, then the holder of that successor's rights.\n")
+	b.WriteString("`Touch` only vouches for the account that signed the transaction, so no realm can keep someone else's will from being released. ")
+	b.WriteString("`Holder` returns the address itself, or the end of the chain of handovers that starts at it.\n")
 	return b.String()
 }

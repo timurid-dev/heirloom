@@ -1,6 +1,7 @@
 package keepersboard
 
 import (
+	"chain/runtime/unsafe"
 	"strconv"
 	"strings"
 	"time"
@@ -82,7 +83,11 @@ func callerOf(cur realm) address {
 	if !cur.IsCurrent() {
 		panic("unauthorized realm")
 	}
-	return cur.Previous().Address()
+	caller := cur.Previous()
+	if caller.IsUserCall() && len(unsafe.OriginSend()) > 0 {
+		panic("the board does not accept coins")
+	}
+	return caller.Address()
 }
 
 func mustBeKeeper(cur realm) {

@@ -9,10 +9,7 @@ import (
 	"gno.land/p/nt/seqid/v0"
 )
 
-const (
-	listPageLen  = 20
-	maxListPages = 1_000_000
-)
+const listPageLen = 20
 
 func newWill(owner address, heirs []*Heir, silence time.Duration) *Will {
 	w := &Will{
@@ -99,29 +96,16 @@ func removeWill(w *Will) {
 	state.wills.Remove(willKey(w.ID))
 }
 
-func willsMadeBy(addr address, page int) ([]*Will, bool) {
-	return willPage(&state.ownerWills, addr, page)
-}
-
-func willsNaming(addr address, page int) ([]*Will, bool) {
-	return willPage(&state.heirWills, addr, page)
-}
-
-func willsPassingRightsTo(addr address, page int) ([]*Will, bool) {
-	return willPage(&state.successorWills, addr, page)
-}
-
-func willPage(index *avl.Tree, addr address, page int) ([]*Will, bool) {
-	if page < 1 || page > maxListPages {
-		return nil, false
-	}
+func willPage(index *avl.Tree, addr address, before int) ([]*Will, bool) {
 	prefix := addr.String() + "/"
-	skip := (page - 1) * listPageLen
+	end := addr.String() + "0"
+	if before > 0 {
+		end = prefix + willKey(before)
+	}
 	var ws []*Will
 	more := false
-	index.ReverseIterate(prefix, addr.String()+"0", func(key string, _ any) bool {
-		if skip > 0 {
-			skip--
+	index.ReverseIterate(prefix, end, func(key string, _ any) bool {
+		if key == end {
 			return false
 		}
 		if len(ws) == listPageLen {

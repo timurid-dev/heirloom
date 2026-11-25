@@ -22,8 +22,8 @@ func userLink(addr address) string {
 	return link(shortAddr(addr), UserURL(addr))
 }
 
-func userPageLink(label string, addr address, page int) string {
-	return link(label, webPath+":u/"+addr.String()+"/"+strconv.Itoa(page))
+func userPageLink(label string, addr address, list string, before int) string {
+	return link(label, UserURL(addr)+"/"+list+"/"+strconv.Itoa(before))
 }
 
 func txURL(fn string, send int64, args ...string) string {

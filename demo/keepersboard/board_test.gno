@@ -1,10 +1,12 @@
 package keepersboard
 
 import (
+	"chain"
 	"strconv"
 	"strings"
 	"testing"
 
+	"gno.land/p/nt/avl/v0"
 	"gno.land/p/nt/testutils/v0"
 	"gno.land/p/nt/uassert/v0"
 
@@ -18,7 +20,14 @@ var (
 
 const blocksPerDay = 24 * 60 * 60 / 5
 
+func resetBoard() {
+	notes = avl.Tree{}
+	pinned = 0
+	lastID = 0
+}
+
 func TestBoardPassesToTheSuccessor(cur realm, t *testing.T) {
+	resetBoard()
 	testing.SetRealm(testing.NewUserRealm(stranger))
 	first := Post(cross(cur), "  hello   from\nthe tavern  ")
 	uassert.Equal(t, "hello from the tavern", mustGetNote(first).Text)
@@ -58,6 +67,7 @@ func TestBoardPassesToTheSuccessor(cur realm, t *testing.T) {
 }
 
 func TestNotesAreCheckedAndEscaped(cur realm, t *testing.T) {
+	resetBoard()
 	testing.SetRealm(testing.NewUserRealm(stranger))
 	uassert.AbortsContains(t, cur, "a note must be 1 to 280 characters", func() {
 		Post(cross(cur), "   ")
@@ -73,6 +83,7 @@ func TestNotesAreCheckedAndEscaped(cur realm, t *testing.T) {
 }
 
 func TestNotesAreCountedInCharacters(cur realm, t *testing.T) {
+	resetBoard()
 	testing.SetRealm(testing.NewUserRealm(stranger))
 	id := Post(cross(cur), strings.Repeat("ж", maxNoteLen))
 	uassert.Equal(t, maxNoteLen, len([]rune(mustGetNote(id).Text)))
@@ -84,4 +95,17 @@ func TestNotesAreCountedInCharacters(cur realm, t *testing.T) {
 func TestUnknownPagesAreNotFound(t *testing.T) {
 	uassert.True(t, strings.Contains(Render("anything"), "# Page not found"))
 	uassert.True(t, strings.Contains(Render("/"), "# The Keeper's Board"))
+}
+
+func TestTheBoardRefusesCoins(cur realm, t *testing.T) {
+	resetBoard()
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	testing.SetOriginSend(chain.Coins{{"ugnot", 1}})
+	uassert.AbortsWithMessage(t, cur, "the board does not accept coins", func() {
+		Post(cross(cur), "hi")
+	})
+	testing.SetOriginSend(nil)
+	uassert.Equal(t, 1, Post(cross(cur), "hi"))
+	uassert.True(t, strings.Contains(Render(""), "[the founder's wills]("+heirloom.UserURL(founder)+")"))
+	uassert.True(t, strings.Contains(Render(""), "[Heirloom]("+heirloom.HomeURL()+")"))
 }

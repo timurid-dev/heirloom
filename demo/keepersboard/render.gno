@@ -20,10 +20,10 @@ func Render(path string) string {
 	}
 	var b strings.Builder
 	b.WriteString("# The Keeper's Board\n\n")
-	b.WriteString("A small board that shows [Heirloom](" + heirloom.UserURL(founder) + ") at work. ")
+	b.WriteString("A small board that shows [Heirloom](" + heirloom.HomeURL() + ") at work; see [the founder's wills](" + heirloom.UserURL(founder) + "). ")
 	b.WriteString("Anyone can post a note. The keeper can pin one note and remove any. ")
 	b.WriteString("The keeper is `heirloom.Holder(founder)`: the founder, until a released will of the founder hands the board to a successor. ")
-	b.WriteString("Every post, pin and removal counts as a sign of life on Heirloom for whoever signed it, unless it was signed with a session key.\n\n")
+	b.WriteString("Every post, pin and removal is a sign of life on Heirloom for whoever signed it.\n\n")
 	b.WriteString(keeperSection())
 	b.WriteString(pinnedSection())
 	b.WriteString(notesSection())

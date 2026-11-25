@@ -18,10 +18,7 @@ func credit(w *Will, asset string, amount int64) {
 
 func payOut(cur realm, w *Will, asset string, to address, amount int64) {
 	w.take(asset, amount)
-	if asset == gnot {
-		state.totalGNOT -= amount
-	}
-	send(cur, asset, to, amount)
+	payShare(cur, asset, to, amount)
 }
 
 func payShare(cur realm, asset string, to address, amount int64) {

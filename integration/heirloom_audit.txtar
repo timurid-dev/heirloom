@@ -98,12 +98,12 @@ stderr 'will 1 is already released'
 
 gnokey maketx call -pkgpath $H -func Claim -args 1 -args $bob_user_addr -args ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
 stdout OK!
-gnokey maketx call -pkgpath $H -func Claim -args 1 -args $anna_user_addr -args ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
-stdout OK!
 gnokey maketx call -pkgpath $H -func Claim -args 1 -args $bob_user_addr -args $TOK -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
 stdout OK!
-gnokey maketx call -pkgpath $H -func Claim -args 1 -args $anna_user_addr -args $TOK -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+gnokey maketx call -pkgpath $H -func ClaimAll -args 1 -args $anna_user_addr -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
 stdout OK!
+! gnokey maketx call -pkgpath $H -func ClaimAll -args 1 -args $anna_user_addr -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stderr 'has nothing left to claim'
 
 ! gnokey maketx call -pkgpath $H -func Claim -args 1 -args $bob_user_addr -args ugnot -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
 stderr 'has already been paid their share of ugnot'

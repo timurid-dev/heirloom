@@ -4,57 +4,77 @@ import (
 	"strconv"
 	"strings"
 
+	"gno.land/p/nt/avl/v0"
 	"gno.land/p/nt/ufmt/v0"
 )
 
-func renderUser(addr address, page int) string {
-	made, madeMore := willsMadeBy(addr, page)
-	named, namedMore := willsNaming(addr, page)
-	succeeding, succeedingMore := willsPassingRightsTo(addr, page)
-	if page > 1 && len(made) == 0 && len(named) == 0 && len(succeeding) == 0 {
-		return notFound("Page not found")
-	}
+type willList struct {
+	slug  string
+	title string
+	index *avl.Tree
+}
 
+const (
+	listMade      = "made"
+	listHeir      = "heir"
+	listSuccessor = "successor"
+)
+
+func willLists() []willList {
+	return []willList{
+		{listMade, "Wills made", &state.ownerWills},
+		{listHeir, "Named as heir", &state.heirWills},
+		{listSuccessor, "Named as successor", &state.successorWills},
+	}
+}
+
+func renderUser(addr address, only string, before int) string {
 	var b strings.Builder
 	b.WriteString("# " + shortAddr(addr) + "\n\n" + backLink() + "\n\n`" + addr.String() + "`\n\n")
 	if holder := holderOf(addr); holder != addr {
 		b.WriteString("Admin rights of this address now belong to " + userLink(holder) + ".\n\n")
 	}
-	var madeLines, namedLines, succeedingLines []string
-	for _, w := range made {
-		madeLines = append(madeLines, ufmt.Sprintf("- %s: %s\n", willLink(w.ID), string(w.status())))
+	found, named := false, false
+	for _, list := range willLists() {
+		if only != "" && list.slug != only {
+			continue
+		}
+		found = true
+		ws, more := willPage(list.index, addr, before)
+		if only != "" && len(ws) == 0 {
+			return notFound("Page not found")
+		}
+		b.WriteString("## " + list.title + "\n\n")
+		if len(ws) == 0 {
+			b.WriteString("None.\n\n")
+			continue
+		}
+		for _, w := range ws {
+			b.WriteString(willLine(list.slug, w, addr))
+		}
+		if more {
+			b.WriteString("\n" + userPageLink("More", addr, list.slug, ws[len(ws)-1].ID) + "\n")
+		}
+		b.WriteString("\n")
+		named = named || list.slug != listMade
 	}
-	for _, w := range named {
-		namedLines = append(namedLines, ufmt.Sprintf("- %s of %s: %d%%, %s · %s\n", willLink(w.ID), userLink(w.Owner), w.heir(addr).Percent, string(w.status()), hideLink(w)))
+	if !found {
+		return notFound("Page not found")
 	}
-	for _, w := range succeeding {
-		succeedingLines = append(succeedingLines, ufmt.Sprintf("- %s of %s: %s · %s\n", willLink(w.ID), userLink(w.Owner), string(w.status()), hideLink(w)))
-	}
-	b.WriteString(section("Wills made", madeLines, page))
-	b.WriteString(section("Named as heir", namedLines, page))
-	b.WriteString(section("Named as successor", succeedingLines, page))
-	if len(namedLines) > 0 || len(succeedingLines) > 0 {
-		b.WriteString("If this is your address, hide takes a will off this page; you can still be paid, and Unhide puts it back.\n\n")
-	}
-	if madeMore || namedMore || succeedingMore {
-		b.WriteString(userPageLink("More", addr, page+1) + "\n")
+	if named {
+		b.WriteString("If this is your address, hide takes a will off this page; you stay an heir or successor, and Unhide puts it back.\n")
 	}
 	return b.String()
 }
 
-func section(title string, lines []string, page int) string {
-	if len(lines) == 0 {
-		if page == 1 {
-			return "## " + title + "\n\nNone.\n\n"
-		}
-		return ""
+func willLine(list string, w *Will, addr address) string {
+	switch list {
+	case listHeir:
+		return ufmt.Sprintf("- %s of %s: %d%%, %s · %s\n", willLink(w.ID), userLink(w.Owner), w.heir(addr).Percent, string(w.status()), hideLink(w))
+	case listSuccessor:
+		return ufmt.Sprintf("- %s of %s: %s · %s\n", willLink(w.ID), userLink(w.Owner), string(w.status()), hideLink(w))
 	}
-	var b strings.Builder
-	b.WriteString("## " + title + "\n\n")
-	for _, line := range lines {
-		b.WriteString(line)
-	}
-	return b.String() + "\n"
+	return ufmt.Sprintf("- %s: %s\n", willLink(w.ID), string(w.status()))
 }
 
 func hideLink(w *Will) string {

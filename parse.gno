@@ -55,6 +55,8 @@ func parseSuccessor(raw address, owner address) address {
 		panic("you cannot be your own successor")
 	case successor == selfAddr:
 		panic("this realm cannot be a successor")
+	case hasDeclined(owner, successor):
+		panic(successor.String() + " declined to be your successor")
 	}
 	return successor
 }
