@@ -6,10 +6,10 @@ Built for the Gnome Tavern hackathon. The repository also contains **The Keeper'
 
 ## Deployment
 
-This version is written for the Onyx testnet at the `/v1` package paths and is not deployed there yet:
+Live on the Onyx testnet:
 
-- Heirloom: `gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1`
-- The Keeper's Board: `gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/keepersboard/v1`
+- Heirloom: [gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1](https://onyx.testnets.gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1), with a test will at [will/1](https://onyx.testnets.gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/heirloom/v1:will/1)
+- The Keeper's Board: [gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/keepersboard/v1](https://onyx.testnets.gno.land/r/g1klfptn25xf37smf27vqr4g6qlmtwc0lz6y5mcj/keepersboard/v1)
 
 The same paths without `/v1` hold an earlier version, without the objection period, `Hide`, `Decline`, `ReturnRights` and `ClaimAll`. Packages on gno.land cannot be changed once added; do not build on the old paths.
 
