@@ -1,6 +1,7 @@
 package keepersboard
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -30,7 +31,10 @@ func TestBoardPassesToTheSuccessor(cur realm, t *testing.T) {
 	Pin(cross(cur), first)
 	uassert.Equal(t, first, pinned)
 	will := heirloom.CreateWill(cross(cur), anna.String()+":100", "1", anna)
-	uassert.True(t, strings.Contains(Render(""), "can be released from"))
+	board := Render("")
+	uassert.True(t, strings.Contains(board, "can be released from"))
+	from := strings.SplitN(strings.SplitN(board, "can be released from ", 2)[1], " if", 2)[0]
+	uassert.True(t, strings.Contains(heirloom.Render("will/"+strconv.Itoa(will)), "| "+from+" |"))
 
 	testing.SkipHeights(blocksPerDay + 12)
 	uassert.True(t, strings.Contains(Render(""), "is due"))

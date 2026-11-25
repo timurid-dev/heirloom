@@ -48,7 +48,7 @@ func keeperSection() string {
 	case "due":
 		b.WriteString("The founder's " + willLink + " is due: anyone but the founder can release it now.\n\n")
 	default:
-		b.WriteString("The founder's " + willLink + " can be released from " + formatTime(releaseAt) + " if the founder stays silent until then.\n\n")
+		b.WriteString("The founder's " + willLink + " can be released from " + formatTimeFrom(releaseAt) + " if the founder stays silent until then.\n\n")
 	}
 	return b.String()
 }
@@ -107,4 +107,11 @@ func heirloomWeb() string {
 
 func formatTime(t time.Time) string {
 	return t.UTC().Format("2006-01-02 15:04 UTC")
+}
+
+func formatTimeFrom(t time.Time) string {
+	if m := t.Truncate(time.Minute); m.Before(t) {
+		t = m.Add(time.Minute)
+	}
+	return formatTime(t)
 }
