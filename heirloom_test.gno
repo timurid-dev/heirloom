@@ -3,6 +3,7 @@ package heirloom
 import (
 	"chain"
 	"chain/banker"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -843,5 +844,107 @@ func TestCallsThroughARealmCountForTheSigner(cur realm, t *testing.T) {
 	testing.SetRealm(testing.NewCodeRealm("gno.land/r/someone/keeper"))
 	uassert.AbortsWithMessage(t, cur, "the will is already released", func() {
 		Release(cross(cur), id)
+	})
+}
+
+func TestReleaseOpensExactlyWhenSilenceEnds(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id := CreateWill(cross(cur), anna.String()+":100", "1", anna)
+	w := getWill(id)
+
+	testing.SetRealm(testing.NewUserRealm(stranger))
+	w.LastSeen = time.Now().Add(-w.Silence + time.Second)
+	uassert.AbortsContains(t, cur, "the will can be released from", func() {
+		Release(cross(cur), id)
+	})
+	w.LastSeen = time.Now().Add(-w.Silence)
+	Release(cross(cur), id)
+	uassert.True(t, w.isReleased())
+}
+
+func TestSilenceBoundsAreAccepted(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id := CreateWill(cross(cur), anna.String()+":100", "3650", anna)
+	uassert.True(t, getWill(id).Silence == MaxSilence)
+	SetSilence(cross(cur), id, " 1d ")
+	uassert.True(t, getWill(id).Silence == MinSilence)
+}
+
+func TestSharesOfTheLargestAmountAddUp(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id := CreateWill(cross(cur), heirs(anna.String()+":70", boris.String()+":29", stranger.String()+":1"), "1", anna)
+	w := getWill(id)
+	w.snapshot.Set(gnot, int64(math.MaxInt64))
+
+	var total int64
+	for _, h := range w.Heirs {
+		share := w.shareOf(h, gnot)
+		uassert.True(t, share > 0)
+		total += share
+	}
+	uassert.Equal(t, int64(math.MaxInt64), total)
+	uassert.Equal(t, int64(math.MaxInt64)/100, w.shareOf(w.Heirs[2], gnot))
+}
+
+func TestHoldingsCannotOverflow(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	w := getWill(CreateWill(cross(cur), anna.String()+":100", "1", anna))
+	w.add(gnot, math.MaxInt64)
+	uassert.PanicsContains(t, cur, "the will cannot hold that much of ugnot", func() {
+		w.add(gnot, 1)
+	})
+	uassert.Equal(t, int64(math.MaxInt64), w.balance(gnot))
+}
+
+func TestAWillHoldsAtMostTenAssets(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	w := getWill(CreateWill(cross(cur), anna.String()+":100", "1", anna))
+	for i := 0; i < MaxAssets; i++ {
+		w.add("gno.land/r/test/t"+strconv.Itoa(i)+".T", 1)
+	}
+	w.add("gno.land/r/test/t0.T", 1)
+	uassert.Equal(t, int64(2), w.balance("gno.land/r/test/t0.T"))
+	uassert.PanicsContains(t, cur, "a will can hold at most 10 different assets", func() {
+		w.add(gnot, 1)
+	})
+	w.take("gno.land/r/test/t1.T", 1)
+	w.add(gnot, 1)
+	uassert.Equal(t, MaxAssets, len(w.assets()))
+}
+
+func TestOwnerCanStillRevokeADueWill(cur realm, t *testing.T) {
+	reset()
+
+	testing.SetRealm(testing.NewUserRealm(owner))
+	withSend(0)
+	id := CreateWill(cross(cur), anna.String()+":100", "1", anna)
+	withSend(1_000_000)
+	Deposit(cross(cur), id)
+	silenceOver(id)
+	uassert.True(t, getWill(id).isDue())
+
+	withSend(0)
+	before := balance(owner)
+	Revoke(cross(cur), id)
+	uassert.Equal(t, before+1_000_000, balance(owner))
+
+	testing.SetRealm(testing.NewUserRealm(anna))
+	uassert.AbortsContains(t, cur, "no such will", func() {
+		Claim(cross(cur), id, anna, gnot)
 	})
 }

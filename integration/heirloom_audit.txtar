@@ -67,7 +67,9 @@ stderr 'the will can be released from'
 ! gnokey maketx call -pkgpath $H -func Release -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test test1
 stderr 'you own this will'
 
-exec sleep 35
+exec sleep 45
+gnokey maketx call -pkgpath gno.land/r/test/tok -func Faucet -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
+stdout OK!
 gnokey maketx call -pkgpath gno.land/r/test/tok -func Faucet -args 1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test eve
 stdout OK!
 

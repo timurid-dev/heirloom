@@ -33,7 +33,9 @@ stderr 'sign with your master key'
 ! gnokey maketx run -master test1 -gas-fee 1000000ugnot -gas-wanted 50000000 -chainid=tendermint_test sess $WORK/run/ping.gno
 stderr 'sign with your master key'
 
-exec sleep 35
+exec sleep 45
+gnokey maketx send -send 1ugnot -to $eve_user_addr -gas-fee 1000000ugnot -gas-wanted 10000000 -chainid=tendermint_test bob
+stdout OK!
 gnokey maketx send -send 1ugnot -to $eve_user_addr -gas-fee 1000000ugnot -gas-wanted 10000000 -chainid=tendermint_test bob
 stdout OK!
 
